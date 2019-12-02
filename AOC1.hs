@@ -10,18 +10,27 @@ import           Text.Parsec.ByteString (Parser, parseFromFile)
 number :: Parser Integer
 number = read <$> many1 digit
 
-parseOp = error "no parser specified"
+parseOp = many1 (number <* skipMany space)
 
-solution1 :: IO String
+calculateFuel :: Integer -> Integer
+calculateFuel x = (max 0) . (subtract 2) . floor . (/ 3.0) . fromIntegral $ x
+
+totalFuel :: Integer -> Integer
+totalFuel x | x <= 0 = 0
+totalFuel x = let fuel = calculateFuel x in fuel + totalFuel fuel
+
+-- 3252208
+solution1 :: IO Integer
 solution1 = do
   ops <- parseFromFile parseOp "AOC1.input"
   case ops of
-    Right o -> error "no solution yet"
+    Right o -> return . sum $ calculateFuel <$> o
     Left e  -> error $ show e
 
-solution2 :: IO String
+--4875451
+solution2 :: IO Integer
 solution2 = do
   ops <- parseFromFile parseOp "AOC1.input"
   case ops of
-    Right o -> error "no solution yet"
+    Right o -> return . sum $ totalFuel <$> o
     Left e  -> error $ show e
