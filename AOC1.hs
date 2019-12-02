@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 
 module AOC1 where
@@ -13,7 +12,7 @@ number = read <$> many1 digit
 parseOp = many1 (number <* skipMany space)
 
 calculateFuel :: Integer -> Integer
-calculateFuel x = (max 0) . (subtract 2) . floor . (/ 3.0) . fromIntegral $ x
+calculateFuel = max 0 . subtract 2 . floor . (/ 3.0) . fromIntegral
 
 totalFuel :: Integer -> Integer
 totalFuel x | x <= 0 = 0
