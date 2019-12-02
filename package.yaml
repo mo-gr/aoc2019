@@ -8,6 +8,7 @@ dependencies:
 - hourglass
 - vector
 - mtl
+- array
 executables:
   AOC:
     main: Main.hs
@@ -18,6 +19,7 @@ executables:
       - -O2
     other-modules:
       AOC1
+      AOC2
 data-files:
 - example.txt
 stability: experimental
