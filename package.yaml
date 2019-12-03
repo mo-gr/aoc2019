@@ -20,6 +20,7 @@ executables:
     other-modules:
       AOC1
       AOC2
+      AOC3
 data-files:
 - example.txt
 stability: experimental
