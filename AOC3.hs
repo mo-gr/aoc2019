@@ -5,6 +5,7 @@ module AOC3 where
 import           Text.Parsec            (digit, many1, parse, skipMany, space,
                                          string, (<|>), sepBy1)
 import           Text.Parsec.ByteString (Parser, parseFromFile)
+import Data.Maybe (maybe)
 import Data.Functor (($>))
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -54,16 +55,30 @@ shorten :: Line -> Line
 shorten Line {_direction = d, _length = l} = Line {_direction=d, _length=(l - 1)}
 
 wireToPointCloud :: Wire -> Set Point
-wireToPointCloud lines = Set.fromList . mconcat $ (lineToPoints []) <$> lines
+wireToPointCloud lines = Set.fromList $ foldl (\ps l -> lineToPoints ps l) [] lines
 
--- example 159
+crossings :: [Set Point] -> Set Point
+crossings (s:[]) = s
+crossings (s:ss) = Set.intersection s $ crossings ss
 
-solution1 :: IO (Int, Int)
+manhattanDistance :: Point -> Point -> Int
+manhattanDistance p1 p2 = let dx = _x p1 - _x p2
+                              dy = _y p1 - _y p2
+                          in abs dx + abs dy
+manhattan0 = manhattanDistance origin
+
+findSmallestDistance :: Set Point -> Int
+findSmallestDistance s = maybe 0 id $ Set.lookupMin $ Set.map manhattan0 $ Set.delete origin s
+
+origin = Point 0 0
+
+-- 1017
+solution1 :: IO Int
 solution1 = do
-  ops <- parseFromFile parseOp "example.txt"
+  ops <- parseFromFile parseOp "AOC3.input"
   case ops of
-    Right wires -> print $ wireToPointCloud <$> wires
-  error "no solution yet"
+    Right wires -> return . findSmallestDistance . crossings $ wireToPointCloud <$> wires
+
 
 solution2 :: IO ()
 solution2 = error "no solution yet"
