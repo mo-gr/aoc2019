@@ -3,6 +3,7 @@ module Main where
 import qualified AOC1
 import qualified AOC2
 import qualified AOC3
+import qualified AOC4
 import           System.Environment
 import           System.Exit
 
@@ -25,4 +26,5 @@ main = do
     Just "1" -> format AOC1.solution1 AOC1.solution2
     Just "2" -> format AOC2.solution1 AOC2.solution2
     Just "3" -> format AOC3.solution1 AOC3.solution2
+    Just "4" -> format AOC4.solution1 AOC4.solution2
     Just other -> putStrLn $ "No sulution for day " ++ show other
