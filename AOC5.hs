@@ -25,6 +25,7 @@ import           Control.Monad.State.Strict     ( State
                                                 , gets
                                                 , put
                                                 , execState
+                                                , modify
                                                 )
 
 number :: Parser Int
@@ -37,15 +38,15 @@ convert xs = listArray (0, (length xs) - 1) xs
 
 type Value = Int
 type Address = Int
-data Machine = Machine { memory :: Array Address Value, opCode :: Address }
+data Machine = Machine { memory :: Array Address Value, opCode :: Address, input :: Value, output :: Value }
 type MachineState = State Machine
 
 buildMachine :: [Value] -> Machine
-buildMachine input = Machine { memory = (convert input), opCode = 0 }
+buildMachine input = Machine { memory = (convert input), opCode = 0, input = 0, output = 0 }
 
 setup :: Value -> Value -> Machine -> Machine
-setup verb noun m =
-    Machine { memory = (memory m) // [(1, verb), (2, noun)], opCode = 0 }
+setup input' output' m =
+    Machine { memory = (memory m), opCode = 0, input = input', output = output' }
 
 
 solution1 :: IO Value
@@ -72,8 +73,24 @@ runUntilHalt = do
     case operation of
         1  -> opAdd >> runUntilHalt
         2  -> opMul >> runUntilHalt
+        3  -> readInput >> runUntilHalt
+        4  -> writeOutput >> runUntilHalt
         99 -> return ()
         x  -> error $ "unknown opcode: " ++ show x
+
+readInput :: MachineState ()
+readInput = do
+  o <- gets opCode
+  dest <- loadMemory (o + 1)
+  input' <- gets input
+  store dest input'
+  modify (\s -> s {opCode = o + 2})
+
+writeOutput :: MachineState ()
+writeOutput = do
+  o <- gets opCode
+  val <- loadMemory (o + 1)
+  modify (\s -> s {opCode = o + 2, output = val})
 
 opAdd :: MachineState ()
 opAdd = mathOp (+)
@@ -87,7 +104,7 @@ mathOp op = do
     a2 <- loadIndirect (o + 2)
     storeIndirect (o + 3) (a1 `op` a2)
     m' <- gets memory
-    put $ Machine { memory = m', opCode = o + 4 }
+    modify (\s -> s { memory = m', opCode = o + 4 })
 
 loadMemory :: Address -> MachineState Value
 loadMemory x = do
@@ -103,14 +120,12 @@ loadIndirect x = do
 store :: Address -> Value -> MachineState ()
 store target v = do
     m <- gets memory
-    o <- gets opCode
     let m' = m // [(target, v)]
-    put $ Machine { memory = m', opCode = o }
+    modify (\s -> s { memory = m'})
 
 storeIndirect :: Address -> Value -> MachineState ()
 storeIndirect x v = do
     m      <- gets memory
-    o      <- gets opCode
     target <- loadMemory x
     let m' = m // [(target, v)]
-    put $ Machine { memory = m', opCode = o }
+    modify (\s -> s { memory = m'})
