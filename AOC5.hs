@@ -27,19 +27,27 @@ import           Control.Monad.State.Strict     ( State
                                                 , execState
                                                 , modify
                                                 )
+import qualified Hedgehog as H
+import qualified Hedgehog.Gen as Gen
+import qualified Hedgehog.Range as Range
 
 number :: Parser Int
 number = read <$> many1 digit
+negativeNumber :: Parser Int
+negativeNumber = negate . read <$> (string "-" *> many1 digit)
 
-parseOp = number `sepBy` (string ",")
+parseOp = (number <|> negativeNumber) `sepBy` (string ",")
 
 convert :: [Int] -> Array Int Int
 convert xs = listArray (0, (length xs) - 1) xs
 
 type Value = Int
 type Address = Int
-data Machine = Machine { memory :: Array Address Value, opCode :: Address, input :: Value, output :: Value }
+data Machine = Machine { memory :: Array Address Value, opCode :: Address, input :: Value, output :: Value } deriving (Show, Eq)
 type MachineState = State Machine
+data Running = Halt | Running
+
+data ParameterMode = Position | Immediate
 
 buildMachine :: [Value] -> Machine
 buildMachine input = Machine { memory = (convert input), opCode = 0, input = 0, output = 0 }
@@ -51,11 +59,11 @@ setup input' output' m =
 
 solution1 :: IO Value
 solution1 = do
-    ops <- parseFromFile parseOp "AOC2.input"
-    let input = setup 12 2 . buildMachine <$> ops
+    ops <- parseFromFile parseOp "AOC5.input"
+    let input = setup 1 0 . buildMachine <$> ops
     case input of
-        --Right m -> return . (! 0) . memory $ execState runUntilHalt m
-        Right _ -> error "no solution yet"
+        Right m -> return . output $ execState runUntilHalt m
+        --Right _ -> error "no solution yet"
         Left  e -> error $ show e
 
 
@@ -66,48 +74,85 @@ solution2 = do
         Right _ -> error "no solution yet"
         Left  e -> error $ show e
 
-runUntilHalt :: MachineState ()
-runUntilHalt = do
+
+tick :: MachineState ()
+tick = do
     opAddr    <- gets opCode
-    operation <- loadMemory opAddr
+    operation <- load Immediate opAddr
     case operation of
-        1  -> opAdd >> runUntilHalt
-        2  -> opMul >> runUntilHalt
-        3  -> readInput >> runUntilHalt
-        4  -> writeOutput >> runUntilHalt
+        1  -> opAdd Position Position
+        101  -> opAdd Immediate Position
+        1001  -> opAdd Position Immediate
+        1101  -> opAdd Immediate Immediate
+        2  -> opMul Position Position
+        102  -> opMul Immediate Position
+        1002  -> opMul Position Immediate
+        1102  -> opMul Immediate Immediate
+        3  -> readInput Position
+        103  -> readInput Immediate
+        4  -> writeOutput Position
+        104  -> writeOutput Immediate
         99 -> return ()
         x  -> error $ "unknown opcode: " ++ show x
 
-readInput :: MachineState ()
-readInput = do
+runUntilHalt :: MachineState ()
+runUntilHalt = do 
+    opAddr    <- gets opCode
+    operation <- load Immediate opAddr
+    case operation of
+      99 -> return ()
+      _ -> tick >> runUntilHalt
+
+-- runUntilHalt :: MachineState ()
+-- runUntilHalt = do
+--     opAddr    <- gets opCode
+--     operation <- load Immediate opAddr
+--     case operation of
+--         1  -> opAdd Position Position >> runUntilHalt
+--         101  -> opAdd Immediate Position >> runUntilHalt
+--         1001  -> opAdd Position Immediate >> runUntilHalt
+--         1101  -> opAdd Immediate Immediate >> runUntilHalt
+--         2  -> opMul Position Position >> runUntilHalt
+--         102  -> opMul Immediate Position >> runUntilHalt
+--         1002  -> opMul Position Immediate >> runUntilHalt
+--         1102  -> opMul Immediate Immediate >> runUntilHalt
+--         3  -> readInput Position >> runUntilHalt
+--         103  -> readInput Immediate >> runUntilHalt
+--         4  -> writeOutput Position >> runUntilHalt
+--         104  -> writeOutput Immediate >> runUntilHalt
+--         99 -> return ()
+--         x  -> error $ "unknown opcode: " ++ show x
+
+readInput :: ParameterMode -> MachineState ()
+readInput p = do
   o <- gets opCode
-  dest <- loadMemory (o + 1)
+  dest <- load p (o + 1)
   input' <- gets input
-  store dest input'
+  store Position dest input'
   modify (\s -> s {opCode = o + 2})
 
-writeOutput :: MachineState ()
-writeOutput = do
+writeOutput :: ParameterMode -> MachineState ()
+writeOutput p = do
   o <- gets opCode
-  val <- loadMemory (o + 1)
+  val <- load p (o + 1)
   modify (\s -> s {opCode = o + 2, output = val})
 
-opAdd :: MachineState ()
+opAdd :: ParameterMode -> ParameterMode -> MachineState ()
 opAdd = mathOp (+)
-opMul :: MachineState ()
+opMul :: ParameterMode -> ParameterMode -> MachineState ()
 opMul = mathOp (*)
 
-mathOp :: (Value -> Value -> Value) -> MachineState ()
-mathOp op = do
+mathOp :: (Value -> Value -> Value) -> ParameterMode -> ParameterMode -> MachineState ()
+mathOp op p1 p2 = do
     o  <- gets opCode
-    a1 <- loadIndirect (o + 1)
-    a2 <- loadIndirect (o + 2)
-    storeIndirect (o + 3) (a1 `op` a2)
+    a1 <- load p1 (o + 1)
+    a2 <- load p2 (o + 2)
+    store Position (o + 3) (a1 `op` a2)
     m' <- gets memory
     modify (\s -> s { memory = m', opCode = o + 4 })
 
-loadMemory :: Address -> MachineState Value
-loadMemory x = do
+loadDirect :: Address -> MachineState Value
+loadDirect x = do
     m <- gets memory
     return $ m ! x
 
@@ -117,15 +162,62 @@ loadIndirect x = do
     let ref = m ! x
     return $ m ! ref
 
-store :: Address -> Value -> MachineState ()
-store target v = do
+store' :: Address -> Value -> MachineState ()
+store' targetAddr v = do
     m <- gets memory
+    target <- load Immediate targetAddr
     let m' = m // [(target, v)]
     modify (\s -> s { memory = m'})
 
-storeIndirect :: Address -> Value -> MachineState ()
-storeIndirect x v = do
-    m      <- gets memory
-    target <- loadMemory x
-    let m' = m // [(target, v)]
-    modify (\s -> s { memory = m'})
+store :: ParameterMode -> Address -> Value -> MachineState ()
+store Immediate = error "there is no store immediate"
+store Position = store'
+
+load :: ParameterMode -> Address -> MachineState Value
+load Immediate = loadDirect
+load Position = loadIndirect
+
+prop_parser :: H.Property
+prop_parser =
+    H.withTests 1 $ H.property $
+      case parse parseOp "test" "101,-1,0,0,99" of
+        Right x -> H.assert $ x == [101,-1,0,0,99]
+        Left e -> H.footnote (show e) >> H.failure 
+
+prop_example_mul :: H.Property
+prop_example_mul =
+  H.withTests 1 $ H.property $ do
+      let m = buildMachine [1002,4,3,4,33]
+      let m' = execState tick m
+      m' H.=== (buildMachine [1002,4,3,4,99]) {opCode = 4}
+
+prop_example_add :: H.Property
+prop_example_add =
+  H.withTests 1 $ H.property $ do
+      let m = buildMachine [1101,100,-1,4,0]
+      let m' = execState tick m
+      m' H.=== (buildMachine [1101,100,-1,4,99]) {opCode = 4}
+
+prop_example_read :: H.Property
+prop_example_read =
+  H.withTests 1 $ H.property $ do
+    let m = (buildMachine [3,1,99]) {input = 42}
+    let m' = execState tick m
+    m' H.=== (buildMachine [3,42,99]) {opCode = 2, input = 42}
+
+prop_in_out :: H.Property 
+prop_in_out = 
+    H.property $ do
+        in' <- H.forAll $ Gen.int (Range.linear 0 100)
+        let m = (buildMachine [3,0,4,0,99]) {input = in'}
+        let m' = execState runUntilHalt m
+        output m' H.=== in'
+
+tests :: IO Bool
+tests = H.checkParallel $ H.Group "AOC5" [
+      ("prop_parser", prop_parser),
+      ("prop_example_mul", prop_example_mul),
+      ("prop_example_add", prop_example_add),
+      ("prop_example_read", prop_example_read),
+      ("prop_in_out", prop_in_out)
+    ]

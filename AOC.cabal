@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ee7ce7efd261caa3f5129e146e98e8cd00f7c9eeeb83a5f94956f51a093c8592
+-- hash: 6c0472c829bb892dcaeddcf814a498defeaf82db6b31d20f8811babe109a99af
 
 name:           AOC
 version:        1.0
@@ -24,6 +24,7 @@ executable AOC
       array
     , base
     , containers
+    , hedgehog
     , hourglass
     , mtl
     , parsec

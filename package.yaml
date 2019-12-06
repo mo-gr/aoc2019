@@ -9,6 +9,7 @@ dependencies:
 - vector
 - mtl
 - array
+- hedgehog
 executables:
   AOC:
     main: Main.hs
