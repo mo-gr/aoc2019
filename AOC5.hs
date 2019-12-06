@@ -30,6 +30,7 @@ import           Control.Monad.State.Strict     ( State
 import qualified Hedgehog as H
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
+import Debug.Trace (trace)
 
 number :: Parser Int
 number = read <$> many1 digit
@@ -54,22 +55,21 @@ buildMachine input = Machine { memory = (convert input), opCode = 0, input = 0, 
 
 setup :: Value -> Value -> Machine -> Machine
 setup input' output' m =
-    Machine { memory = (memory m), opCode = 0, input = input', output = output' }
+    m { input = input', output = output' }
 
-
+-- 14155342
 solution1 :: IO Value
 solution1 = do
     ops <- parseFromFile parseOp "AOC5.input"
     let input = setup 1 0 . buildMachine <$> ops
     case input of
         Right m -> return . output $ execState runUntilHalt m
-        --Right _ -> error "no solution yet"
         Left  e -> error $ show e
 
 
 solution2 :: IO Value
 solution2 = do
-    ops <- parseFromFile parseOp "AOC2.input"
+    ops <- parseFromFile parseOp "AOC5.input"
     case ops of
         Right _ -> error "no solution yet"
         Left  e -> error $ show e
@@ -126,9 +126,8 @@ runUntilHalt = do
 readInput :: ParameterMode -> MachineState ()
 readInput p = do
   o <- gets opCode
-  dest <- load p (o + 1)
   input' <- gets input
-  store Position dest input'
+  store Position (o + 1) input'
   modify (\s -> s {opCode = o + 2})
 
 writeOutput :: ParameterMode -> MachineState ()
@@ -177,6 +176,8 @@ load :: ParameterMode -> Address -> MachineState Value
 load Immediate = loadDirect
 load Position = loadIndirect
 
+-- TESTS
+
 prop_parser :: H.Property
 prop_parser =
     H.withTests 1 $ H.property $
@@ -213,11 +214,27 @@ prop_in_out =
         let m' = execState runUntilHalt m
         output m' H.=== in'
 
+prop_example :: H.Property
+prop_example =
+    H.property $ do 
+        let m = buildMachine [1,1,1,4,99,5,6,0,99]
+        let m' = execState runUntilHalt m
+        m' H.=== (buildMachine [30,1,1,4,2,5,6,0,99]) {opCode = 8}
+
+prop_input_example :: H.Property
+prop_input_example =
+    H.property $ do 
+        let m = (buildMachine [3,0,1,0,6,6,1100]) {input = 1}
+        let m' = execState (tick >> tick) m
+        m' H.=== (buildMachine [1,0,1,0,6,6,1101]) {opCode = 6, input = 1}
+
 tests :: IO Bool
 tests = H.checkParallel $ H.Group "AOC5" [
       ("prop_parser", prop_parser),
       ("prop_example_mul", prop_example_mul),
       ("prop_example_add", prop_example_add),
       ("prop_example_read", prop_example_read),
-      ("prop_in_out", prop_in_out)
+      ("prop_in_out", prop_in_out),
+      ("prop_example", prop_example),
+      ("prop_input_example", prop_input_example)
     ]
