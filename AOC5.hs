@@ -66,12 +66,13 @@ solution1 = do
         Right m -> return . output $ execState runUntilHalt m
         Left  e -> error $ show e
 
-
+-- 8684145
 solution2 :: IO Value
 solution2 = do
     ops <- parseFromFile parseOp "AOC5.input"
-    case ops of
-        Right _ -> error "no solution yet"
+    let input = setup 5 0 . buildMachine <$> ops
+    case input of
+        Right m -> return . output $ execState runUntilHalt m
         Left  e -> error $ show e
 
 
@@ -92,6 +93,22 @@ tick = do
         103  -> readInput Immediate
         4  -> writeOutput Position
         104  -> writeOutput Immediate
+        5 -> jmpIfTrue Position Position
+        105 -> jmpIfTrue Immediate Position
+        1005 -> jmpIfTrue Position Immediate
+        1105 -> jmpIfTrue Immediate Immediate
+        6 -> jmpIfFalse Position Position
+        106 -> jmpIfFalse Immediate Position
+        1006 -> jmpIfFalse Position Immediate
+        1106 -> jmpIfFalse Immediate Immediate
+        7  -> opLT Position Position
+        107  -> opLT Immediate Position
+        1007  -> opLT Position Immediate
+        1107  -> opLT Immediate Immediate
+        8  -> opEq Position Position
+        108  -> opEq Immediate Position
+        1008  -> opEq Position Immediate
+        1108  -> opEq Immediate Immediate
         99 -> return ()
         x  -> error $ "unknown opcode: " ++ show x
 
@@ -102,26 +119,6 @@ runUntilHalt = do
     case operation of
       99 -> return ()
       _ -> tick >> runUntilHalt
-
--- runUntilHalt :: MachineState ()
--- runUntilHalt = do
---     opAddr    <- gets opCode
---     operation <- load Immediate opAddr
---     case operation of
---         1  -> opAdd Position Position >> runUntilHalt
---         101  -> opAdd Immediate Position >> runUntilHalt
---         1001  -> opAdd Position Immediate >> runUntilHalt
---         1101  -> opAdd Immediate Immediate >> runUntilHalt
---         2  -> opMul Position Position >> runUntilHalt
---         102  -> opMul Immediate Position >> runUntilHalt
---         1002  -> opMul Position Immediate >> runUntilHalt
---         1102  -> opMul Immediate Immediate >> runUntilHalt
---         3  -> readInput Position >> runUntilHalt
---         103  -> readInput Immediate >> runUntilHalt
---         4  -> writeOutput Position >> runUntilHalt
---         104  -> writeOutput Immediate >> runUntilHalt
---         99 -> return ()
---         x  -> error $ "unknown opcode: " ++ show x
 
 readInput :: ParameterMode -> MachineState ()
 readInput p = do
@@ -136,10 +133,25 @@ writeOutput p = do
   val <- load p (o + 1)
   modify (\s -> s {opCode = o + 2, output = val})
 
+jmpIfTrue = jmpCond (/= 0)
+jmpIfFalse = jmpCond (== 0)
+
+jmpCond :: (Value -> Bool) -> ParameterMode -> ParameterMode -> MachineState ()
+jmpCond cond p1 p2 = do
+    o <- gets opCode
+    arg <- load p1 (o + 1)
+    dest <- load p2 (o + 2)
+    modify (\s -> s {opCode = if cond arg then dest else o +3})
+
 opAdd :: ParameterMode -> ParameterMode -> MachineState ()
 opAdd = mathOp (+)
 opMul :: ParameterMode -> ParameterMode -> MachineState ()
 opMul = mathOp (*)
+opEq :: ParameterMode -> ParameterMode -> MachineState ()
+opEq = mathOp (\a b -> if a == b then 1 else 0)
+opLT :: ParameterMode -> ParameterMode -> MachineState ()
+opLT = mathOp (\a b -> if a < b then 1 else 0)
+
 
 mathOp :: (Value -> Value -> Value) -> ParameterMode -> ParameterMode -> MachineState ()
 mathOp op p1 p2 = do
@@ -228,6 +240,13 @@ prop_input_example =
         let m' = execState (tick >> tick) m
         m' H.=== (buildMachine [1,0,1,0,6,6,1101]) {opCode = 6, input = 1}
 
+prop_example2 :: H.Property
+prop_example2 =
+    H.property $ do 
+        let m = buildMachine [3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,1106,0,36,98,0,0,1002,21,125,20,4,20,1105,1,46,104,999,1105,1,46,1101,1000,1,20,4,20,1105,1,46,98,99]
+        let m' = execState runUntilHalt m
+        output m' H.=== 999
+
 tests :: IO Bool
 tests = H.checkParallel $ H.Group "AOC5" [
       ("prop_parser", prop_parser),
@@ -236,5 +255,6 @@ tests = H.checkParallel $ H.Group "AOC5" [
       ("prop_example_read", prop_example_read),
       ("prop_in_out", prop_in_out),
       ("prop_example", prop_example),
+      ("prop_example2", prop_example2),
       ("prop_input_example", prop_input_example)
     ]
