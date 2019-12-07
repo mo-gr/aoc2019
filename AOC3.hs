@@ -5,7 +5,7 @@ module AOC3 where
 import           Text.Parsec            (digit, many1, parse, skipMany, space,
                                          string, (<|>), sepBy1)
 import           Text.Parsec.ByteString (Parser, parseFromFile)
-import Data.Maybe (maybe)
+import Data.Maybe (fromMaybe)
 import Data.Functor (($>))
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -55,7 +55,7 @@ shorten :: Line -> Line
 shorten Line {_direction = d, _length = l} = Line {_direction=d, _length=(l - 1)}
 
 wireToPointCloud :: Wire -> Set Point
-wireToPointCloud lines = Set.fromList $ foldl (\ps l -> lineToPoints ps l) [] lines
+wireToPointCloud lines = Set.fromList $ foldl lineToPoints [] lines
 
 crossings :: [Set Point] -> Set Point
 crossings (s:[]) = s
@@ -68,7 +68,7 @@ manhattanDistance p1 p2 = let dx = _x p1 - _x p2
 manhattan0 = manhattanDistance origin
 
 findSmallestDistance :: Set Point -> Int
-findSmallestDistance s = maybe 0 id $ Set.lookupMin $ Set.map manhattan0 $ Set.delete origin s
+findSmallestDistance s = fromMaybe 0 $ Set.lookupMin $ Set.map manhattan0 $ Set.delete origin s
 
 origin = Point 0 0
 
