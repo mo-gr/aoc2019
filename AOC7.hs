@@ -44,23 +44,23 @@ convert xs = listArray (0, (length xs) - 1) xs
 
 type Value = Int
 type Address = Int
-data Machine = Machine { memory :: Array Address Value, opCode :: Address, input :: Value, output :: Value } deriving (Show, Eq)
+data Machine = Machine { memory :: Array Address Value, opCode :: Address, input :: [Value], output :: Value, runState :: RunState } deriving (Show, Eq)
 type MachineState = State Machine
-data Running = Halt | Running
+data RunState = Halt | WaitingForInput | Running deriving (Show, Eq)
 
 data ParameterMode = Position | Immediate
 
 buildMachine :: [Value] -> Machine
-buildMachine input = Machine { memory = (convert input), opCode = 0, input = 0, output = 0 }
+buildMachine input = Machine { memory = (convert input), opCode = 0, input = [], output = 0, runState = Running }
 
 setup :: Value -> Value -> Machine -> Machine
 setup input' output' m =
-    m { input = input', output = output' }
+    m { input = [input'], output = output' }
 
 -- 14155342
 solution1 :: IO Value
 solution1 = do
-    ops <- parseFromFile parseOp "AOC5.input"
+    ops <- parseFromFile parseOp "AOC7.input"
     let input = setup 1 0 . buildMachine <$> ops
     case input of
         Right m -> return . output $ execState runUntilHalt m
@@ -69,7 +69,7 @@ solution1 = do
 -- 8684145
 solution2 :: IO Value
 solution2 = do
-    ops <- parseFromFile parseOp "AOC5.input"
+    ops <- parseFromFile parseOp "AOC7.input"
     let input = setup 5 0 . buildMachine <$> ops
     case input of
         Right m -> return . output $ execState runUntilHalt m
@@ -109,23 +109,29 @@ tick = do
         108  -> opEq Immediate Position
         1008  -> opEq Position Immediate
         1108  -> opEq Immediate Immediate
-        99 -> return ()
+        99 -> halt
         x  -> error $ "unknown opcode: " ++ show x
 
 runUntilHalt :: MachineState ()
 runUntilHalt = do 
-    opAddr    <- gets opCode
-    operation <- load Immediate opAddr
-    case operation of
-      99 -> return ()
+    runState'    <- gets runState
+    case runState' of
+      Halt -> return ()
+      WaitingForInput -> error "waiting for input"
       _ -> tick >> runUntilHalt
+
+halt :: MachineState ()
+halt = modify (\s -> s {runState = Halt})
 
 readInput :: ParameterMode -> MachineState ()
 readInput p = do
   o <- gets opCode
   input' <- gets input
-  store Position (o + 1) input'
-  modify (\s -> s {opCode = o + 2})
+  case input' of
+    [] -> modify (\s -> s {runState = WaitingForInput})
+    (x:xs) -> do
+                store Position (o + 1) x
+                modify (\s -> s {opCode = o + 2, input = xs})
 
 writeOutput :: ParameterMode -> MachineState ()
 writeOutput p = do
@@ -214,15 +220,15 @@ prop_example_add =
 prop_example_read :: H.Property
 prop_example_read =
   H.withTests 1 $ H.property $ do
-    let m = (buildMachine [3,1,99]) {input = 42}
+    let m = (buildMachine [3,1,99]) {input = [42]}
     let m' = execState tick m
-    m' H.=== (buildMachine [3,42,99]) {opCode = 2, input = 42}
+    m' H.=== (buildMachine [3,42,99]) {opCode = 2, input = []}
 
 prop_in_out :: H.Property 
 prop_in_out = 
     H.property $ do
         in' <- H.forAll $ Gen.int (Range.linear 0 100)
-        let m = (buildMachine [3,0,4,0,99]) {input = in'}
+        let m = (buildMachine [3,0,4,0,99]) {input = [in']}
         let m' = execState runUntilHalt m
         output m' H.=== in'
 
@@ -231,19 +237,19 @@ prop_example =
     H.property $ do 
         let m = buildMachine [1,1,1,4,99,5,6,0,99]
         let m' = execState runUntilHalt m
-        m' H.=== (buildMachine [30,1,1,4,2,5,6,0,99]) {opCode = 8}
+        m' H.=== (buildMachine [30,1,1,4,2,5,6,0,99]) {opCode = 8, runState = Halt}
 
 prop_input_example :: H.Property
 prop_input_example =
     H.property $ do 
-        let m = (buildMachine [3,0,1,0,6,6,1100]) {input = 1}
+        let m = (buildMachine [3,0,1,0,6,6,1100]) {input = [1]}
         let m' = execState (tick >> tick) m
-        m' H.=== (buildMachine [1,0,1,0,6,6,1101]) {opCode = 6, input = 1}
+        m' H.=== (buildMachine [1,0,1,0,6,6,1101]) {opCode = 6, input = []}
 
 prop_example2 :: H.Property
 prop_example2 =
     H.property $ do 
-        let m = buildMachine [3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,1106,0,36,98,0,0,1002,21,125,20,4,20,1105,1,46,104,999,1105,1,46,1101,1000,1,20,4,20,1105,1,46,98,99]
+        let m = (buildMachine [3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,1106,0,36,98,0,0,1002,21,125,20,4,20,1105,1,46,104,999,1105,1,46,1101,1000,1,20,4,20,1105,1,46,98,99]) {input = [0]}
         let m' = execState runUntilHalt m
         output m' H.=== 999
 
