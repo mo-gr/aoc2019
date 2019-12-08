@@ -27,9 +27,11 @@ import           Control.Monad.State.Strict     ( State
                                                 , execState
                                                 , modify
                                                 )
+import Control.Monad (liftM, sequence)
 import qualified Hedgehog as H
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
+import Data.List (permutations)
 import Debug.Trace (trace)
 
 number :: Parser Int
@@ -57,23 +59,36 @@ setup :: Value -> Value -> Machine -> Machine
 setup input' output' m =
     m { input = [input'], output = output' }
 
--- 14155342
+connect :: Value -> Value -> Machine -> Machine
+connect input' input'' m =
+    m { input = [input', input'']}
+
+perms = permutations [0,1,2,3,4]
+
+runConnected :: Machine -> [Value] -> IO Value
+runConnected m (s0:s1:s2:s3:s4:[]) = do
+    let m1 = connect s0 0 m
+    o1 <- return . output $ execState runUntilHalt m1
+    let m2 = connect s1 o1 m
+    o2 <-  return . output $ execState runUntilHalt m2
+    let m3 = connect s2 o2 m
+    o3 <-  return . output $ execState runUntilHalt m3
+    let m4 = connect s3 o3 m
+    o4 <-  return . output $ execState runUntilHalt m4
+    let m5 = connect s4 o4 m
+    return . output $ execState runUntilHalt m5
+
+-- 298586
 solution1 :: IO Value
 solution1 = do
     ops <- parseFromFile parseOp "AOC7.input"
-    let input = setup 1 0 . buildMachine <$> ops
-    case input of
-        Right m -> return . output $ execState runUntilHalt m
-        Left  e -> error $ show e
+    let machine = buildMachine <$> ops
+    case machine of
+        Right m -> maximum <$> sequence (runConnected m <$> perms)
+        
 
--- 8684145
 solution2 :: IO Value
-solution2 = do
-    ops <- parseFromFile parseOp "AOC7.input"
-    let input = setup 5 0 . buildMachine <$> ops
-    case input of
-        Right m -> return . output $ execState runUntilHalt m
-        Left  e -> error $ show e
+solution2 = error "no solution yet"
 
 
 tick :: MachineState ()
