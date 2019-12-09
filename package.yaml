@@ -26,6 +26,7 @@ executables:
       AOC5
       AOC6
       AOC7
+      AOC8
 data-files:
 - example.txt
 stability: experimental

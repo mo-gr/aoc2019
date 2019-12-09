@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 28c6bf8dfd6fcbfe01771e4cb817f60a07f9bb0c787712ceca433bbff8b74ff1
+-- hash: 1ac867517b31f929cc84aafdabc7cced4e932f96363d2c892109a97a0598c145
 
 name:           AOC
 version:        1.0
@@ -18,7 +18,7 @@ data-files:
 executable AOC
   main-is: Main.hs
   other-modules:
-      AOC1 AOC2 AOC3 AOC4 AOC5 AOC6 AOC7
+      AOC1 AOC2 AOC3 AOC4 AOC5 AOC6 AOC7 AOC8
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
   build-depends:
       array
