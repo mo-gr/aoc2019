@@ -52,7 +52,7 @@ data Machine = Machine {
 type MachineState = State Machine
 data RunState = Halt | WaitingForInput | Running deriving (Show, Eq)
 
-data ParameterMode = Position | Immediate
+data ParameterMode = Position | Immediate | Relative deriving (Show, Eq)
 
 buildMachine :: [Value] -> Machine
 buildMachine input = Machine { memory = (convert input), opCode = 0, relBase = 0, input = [], output = 0, runState = Running }
@@ -80,37 +80,33 @@ tick :: MachineState ()
 tick = do
     opAddr    <- gets opCode
     operation <- load Immediate opAddr
-    case operation of
-        1  -> opAdd Position Position
-        101  -> opAdd Immediate Position
-        1001  -> opAdd Position Immediate
-        1101  -> opAdd Immediate Immediate
-        2  -> opMul Position Position
-        102  -> opMul Immediate Position
-        1002  -> opMul Position Immediate
-        1102  -> opMul Immediate Immediate
-        3  -> readInput Position
-        103  -> readInput Immediate
-        4  -> writeOutput Position
-        104  -> writeOutput Immediate
-        5 -> jmpIfTrue Position Position
-        105 -> jmpIfTrue Immediate Position
-        1005 -> jmpIfTrue Position Immediate
-        1105 -> jmpIfTrue Immediate Immediate
-        6 -> jmpIfFalse Position Position
-        106 -> jmpIfFalse Immediate Position
-        1006 -> jmpIfFalse Position Immediate
-        1106 -> jmpIfFalse Immediate Immediate
-        7  -> opLT Position Position
-        107  -> opLT Immediate Position
-        1007  -> opLT Position Immediate
-        1107  -> opLT Immediate Immediate
-        8  -> opEq Position Position
-        108  -> opEq Immediate Position
-        1008  -> opEq Position Immediate
-        1108  -> opEq Immediate Immediate
+    case operation `mod` 100 of
+        1  -> opAdd `uncurry` (decodeParameterMode2 operation)
+        2  -> opMul `uncurry` (decodeParameterMode2 operation)
+        3  -> readInput (decodeParameterMode1 operation)
+        4  -> writeOutput (decodeParameterMode1 operation)
+        5 -> jmpIfTrue `uncurry` (decodeParameterMode2 operation)
+        6 -> jmpIfFalse `uncurry` (decodeParameterMode2 operation)
+        7  -> opLT `uncurry` (decodeParameterMode2 operation)
+        8  -> opEq `uncurry` (decodeParameterMode2 operation)
         99 -> halt
         x  -> error $ "unknown opcode: " ++ show x
+
+nthDigit :: Int -> Value -> Int
+nthDigit 0 x = x `mod` 10
+nthDigit n x = (x `div` (10 ^ n)) `mod` 10
+
+toParameterMode :: Int -> ParameterMode
+toParameterMode 0 = Position
+toParameterMode 1 = Immediate
+toParameterMode 2 = Relative
+
+decodeParameterMode2 :: Value -> (ParameterMode, ParameterMode)
+decodeParameterMode2 x = (toParameterMode . nthDigit 2 $ x, toParameterMode . nthDigit 3 $ x)
+
+decodeParameterMode1 :: Value -> ParameterMode
+decodeParameterMode1 = toParameterMode . nthDigit 2
+
 
 runUntilHalt :: MachineState ()
 runUntilHalt = do 
