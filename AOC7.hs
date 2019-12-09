@@ -46,9 +46,16 @@ convert xs = listArray (0, (length xs) - 1) xs
 
 type Value = Int
 type Address = Int
-data Machine = Machine { memory :: Array Address Value, opCode :: Address, input :: [Value], output :: Value, runState :: RunState } deriving (Show, Eq)
+data Machine = Machine { 
+    memory :: Array Address Value, 
+    opCode :: Address, input :: [Value], 
+    output :: Value,
+    runState :: RunState 
+    } deriving (Show, Eq)
 type MachineState = State Machine
-data RunState = Halt | WaitingForInput | Running deriving (Show, Eq)
+data RunState = Halt | WaitingForInput | WritingOutput | Running deriving (Show, Eq)
+
+type FeedbackMachineState = State [Machine]
 
 data ParameterMode = Position | Immediate
 
@@ -64,6 +71,7 @@ connect input' input'' m =
     m { input = [input', input'']}
 
 perms = permutations [0,1,2,3,4]
+feedbackPerms = permutations [5,6,7,8,9]
 
 runConnected :: Machine -> [Value] -> IO Value
 runConnected m (s0:s1:s2:s3:s4:[]) = do
@@ -78,6 +86,10 @@ runConnected m (s0:s1:s2:s3:s4:[]) = do
     let m5 = connect s4 o4 m
     return . output $ execState runUntilHalt m5
 
+liveConnected :: Machine -> [Value] -> IO Value
+liveConnected m (s0:s1:s2:s3:s4:[]) = 
+    return . output . last $ execState runThrusterUntilHalt [m {input = [s0, 0]}, m {input = [s1]}, m {input = [s2]}, m {input = [s3]}, m {input = [s4]}]
+
 -- 298586
 solution1 :: IO Value
 solution1 = do
@@ -85,10 +97,31 @@ solution1 = do
     let machine = buildMachine <$> ops
     case machine of
         Right m -> maximum <$> sequence (runConnected m <$> perms)
-        
 
+runThrusterUntilHalt :: FeedbackMachineState ()
+runThrusterUntilHalt = do 
+    runStates    <- gets $ fmap runState
+    case runStates of
+        [_, _, _, _, Halt] -> return ()
+        [WritingOutput, _, _, _, _] -> modify (\(m0:m1:ms) -> m0 {runState = Running} : m1 {runState = Running, input = input m1 ++ [output m0]} : ms) >> runThrusterUntilHalt
+        [_, WritingOutput, _, _, _] -> modify (\(m0:m1:m2:ms) -> m0 : m1 {runState = Running} : m2 {runState = Running, input = input m2 ++ [output m1]} : ms) >> runThrusterUntilHalt
+        [_, _, WritingOutput, _, _] -> modify (\(m0:m1:m2:m3:ms) -> m0 : m1 : m2 {runState = Running} : m3 {runState = Running, input = input m3 ++ [output m2]} : ms) >> runThrusterUntilHalt
+        [_, _, _, WritingOutput, _] -> modify (\(m0:m1:m2:m3:m4:ms) -> m0 : m1 : m2 : m3 {runState = Running} : m4 {runState = Running, input = input m4 ++ [output m3]} : ms) >> runThrusterUntilHalt
+        [_, _, _, _, WritingOutput] -> modify (\(m0:m1:m2:m3:m4:ms) ->  m0 {runState = Running, input = input m0 ++ [output m4]} : m1 : m2 : m3 : m4 {runState = Running} : ms) >> runThrusterUntilHalt
+        _ -> tickAll >> runThrusterUntilHalt
+
+tickAll :: FeedbackMachineState ()
+tickAll = do
+    machines <- get
+    modify $ const $ (\m -> if (runState m) == Running then execState tick m else m) <$> machines
+
+-- 9246095        
 solution2 :: IO Value
-solution2 = error "no solution yet"
+solution2 = do
+    ops <- parseFromFile parseOp "AOC7.input"
+    let machine = buildMachine <$> ops
+    case machine of
+        Right m -> maximum <$> sequence (liveConnected m <$> feedbackPerms)
 
 
 tick :: MachineState ()
@@ -152,7 +185,7 @@ writeOutput :: ParameterMode -> MachineState ()
 writeOutput p = do
   o <- gets opCode
   val <- load p (o + 1)
-  modify (\s -> s {opCode = o + 2, output = val})
+  modify (\s -> s {opCode = o + 2, output = val, runState = WritingOutput})
 
 jmpIfTrue = jmpCond (/= 0)
 jmpIfFalse = jmpCond (== 0)
