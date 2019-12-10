@@ -40,14 +40,14 @@ search2  :: [Int] -> [Int]
 search2 = filter (\n -> isMonotonous n && hasProperDoubles n)
 
 -- 1716
-solution1 :: IO (Int)
+solution1 :: IO Int
 solution1 = do
   let passwords = search inputRange
   --print passwords
   return $ length passwords
 
 -- 1163
-solution2 :: IO (Int)
+solution2 :: IO Int
 solution2 = do
   let passwords = search2 inputRange
   --print passwords

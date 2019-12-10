@@ -66,13 +66,13 @@ solution1 :: IO Int
 solution1 = do
     layers <- parseFromFile (many1 $ layerParser 25 6) "AOC8.input"
     case layers of
-        Right l -> do 
-            return . checksum . head . sort $ l
+        Right l ->  
+            return . checksum . minimum $ l
 -- KYHFE
 solution2 :: IO ()
 solution2 = do 
     layers <- parseFromFile (many1 $ layerParser 25 6) "AOC8.input"
     case layers of
-        Right l -> do 
+        Right l -> 
             printLayer . mconcat $ l
 
