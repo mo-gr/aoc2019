@@ -67,12 +67,12 @@ solution1 = do
     case machine of
         Right m -> return . output $ execState runUntilHalt (m {input = [1]})
    
-solution2 :: IO Value
+solution2 :: IO [Value]
 solution2 = do
     ops <- parseFromFile parseOp "AOC9.input"
     let machine = buildMachine <$> ops
     case machine of
-        Right m -> error "no solution"
+        Right m -> return . output $ execState runUntilHalt (m {input = [2]})
 
 
 tick :: MachineState ()
