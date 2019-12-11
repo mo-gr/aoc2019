@@ -1,4 +1,4 @@
-module AOC10 where
+module AOC10 (solution1, solution2) where
 
 import           Text.Parsec                    ( digit
                                                 , many1

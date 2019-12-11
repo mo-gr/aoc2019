@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: fa5a3785565272dfa7196d81730ea573efc45d4bc08e7bc2f13c9487eeab26c9
+-- hash: 15f335ebab81ab4608d1bea7ab12f9f560073cbf000261a2e219b0c27304ae2d
 
 name:           AOC
 version:        1.0
@@ -19,14 +19,12 @@ executable AOC
   main-is: Main.hs
   other-modules:
       AOC1 AOC2 AOC3 AOC4 AOC5 AOC6 AOC7 AOC8 AOC9 AOC10 AOC11
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
+  ghc-options: -ddump-to-file -ddump-hi -threaded -rtsopts -with-rtsopts=-N -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -O2
   build-depends:
       array
     , base
     , containers
     , hedgehog
-    , hourglass
     , mtl
     , parsec
-    , vector
   default-language: Haskell2010

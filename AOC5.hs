@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings          #-}
 
-module AOC5 where
+module AOC5 (solution1, solution2) where
 
 import           Text.Parsec                    ( digit
                                                 , many1

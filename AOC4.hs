@@ -1,4 +1,4 @@
-module AOC4 where
+module AOC4 (solution1, solution2) where
 
 import           Data.List                      ( find )
 

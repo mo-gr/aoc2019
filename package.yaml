@@ -5,8 +5,6 @@ dependencies:
 - containers
 - base
 - parsec
-- hourglass
-- vector
 - mtl
 - array
 - hedgehog
@@ -14,9 +12,16 @@ executables:
   AOC:
     main: Main.hs
     ghc-options:
+      - -ddump-to-file 
+      - -ddump-hi
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N
+      - -Wall
+      - -Wcompat
+      - -Wincomplete-record-updates
+      - -Wincomplete-uni-patterns
+      - -Wredundant-constraints
       - -O2
     other-modules:
       AOC1

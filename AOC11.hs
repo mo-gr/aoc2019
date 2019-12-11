@@ -1,4 +1,4 @@
-module AOC11 where
+module AOC11 (solution1, solution2) where
 
 solution1 :: IO ()
 solution1 = error "no solution yet"
