@@ -18,12 +18,14 @@ safeHead :: [a] -> Maybe a
 safeHead []      = Nothing
 safeHead (a : _) = Just a
 
+format :: (Show a, Show b) => IO a -> IO b -> IO ()
 format s1 s2 = do
   putStrLn "Solution 1:"
   s1 >>= print
   putStrLn "Solution 2:"
   s2 >>= print
 
+main :: IO ()
 main = do
   print "Advent of Code 2019"
   print "https://adventofcode.com/2019"

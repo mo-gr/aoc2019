@@ -4,11 +4,7 @@ module AOC2 (solution1, solution2) where
 
 import           Text.Parsec                    ( digit
                                                 , many1
-                                                , parse
-                                                , skipMany
-                                                , space
                                                 , string
-                                                , (<|>)
                                                 , sepBy
                                                 )
 import           Text.Parsec.ByteString         ( Parser
@@ -21,7 +17,6 @@ import           Data.Array                     ( Array
                                                 )
 import           Data.Maybe                     ( isJust )
 import           Control.Monad.State.Strict     ( State
-                                                , get
                                                 , gets
                                                 , put
                                                 , execState
@@ -30,6 +25,7 @@ import           Control.Monad.State.Strict     ( State
 number :: Parser Int
 number = read <$> many1 digit
 
+parseOp :: Parser [Int]
 parseOp = number `sepBy` string ","
 
 convert :: [Int] -> Array Int Int
@@ -59,6 +55,7 @@ solution1 = do
 desired :: Int
 desired = 19690720
 
+inputs :: [(Int, Int)]
 inputs = (,) <$> [0 .. 99] <*> [0 .. 99]
 
 solves :: Machine -> (Int, Int) -> Maybe (Int, Int)
@@ -115,13 +112,6 @@ loadIndirect x = do
   m <- gets memory
   let ref = m ! x
   return $ m ! ref
-
-store :: Address -> Value -> MachineState ()
-store target v = do
-  m <- gets memory
-  o <- gets opCode
-  let m' = m // [(target, v)]
-  put $ Machine { memory = m', opCode = o }
 
 storeIndirect :: Address -> Value -> MachineState ()
 storeIndirect x v = do

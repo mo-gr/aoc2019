@@ -4,11 +4,8 @@ module AOC1 (solution1, solution2) where
 
 import           Text.Parsec                    ( digit
                                                 , many1
-                                                , parse
                                                 , skipMany
                                                 , space
-                                                , string
-                                                , (<|>)
                                                 )
 import           Text.Parsec.ByteString         ( Parser
                                                 , parseFromFile
@@ -17,10 +14,11 @@ import           Text.Parsec.ByteString         ( Parser
 number :: Parser Integer
 number = read <$> many1 digit
 
+parseOp :: Parser [Integer]
 parseOp = many1 (number <* skipMany space)
 
 calculateFuel :: Integer -> Integer
-calculateFuel = max 0 . subtract 2 . floor . (/ 3.0) . fromIntegral
+calculateFuel = max 0 . subtract 2 . floor . (/ (3.0::Double)) . fromIntegral
 
 totalFuel :: Integer -> Integer
 totalFuel x | x <= 0 = 0
