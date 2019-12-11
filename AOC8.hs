@@ -16,6 +16,7 @@ import           Text.Parsec.ByteString         ( Parser
                                                 , parseFromFile
                                                 )
 import           Data.List                      ( sort )
+import           Data.Functor                   ( ($>) )
 
 
 data Layer = Layer {pixels::[Int], width :: Int, height :: Int} deriving (Show, Eq)
@@ -37,8 +38,7 @@ instance Monoid Layer where
   mempty = Layer [2 ..] 0 0
 
 pixelParser :: Parser Int
-pixelParser =
-  string "0" *> return 0 <|> string "1" *> return 1 <|> string "2" *> return 2
+pixelParser = string "0" $> 0 <|> string "1" $> 1 <|> string "2" $> 2
 
 layerParser :: Int -> Int -> Parser Layer
 layerParser w h = do

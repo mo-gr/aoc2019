@@ -41,10 +41,10 @@ number = read <$> many1 digit
 negativeNumber :: Parser Int
 negativeNumber = negate . read <$> (string "-" *> many1 digit)
 
-parseOp = (number <|> negativeNumber) `sepBy` (string ",")
+parseOp = (number <|> negativeNumber) `sepBy` string ","
 
 convert :: [Int] -> Array Int Int
-convert xs = listArray (0, (length xs) - 1) xs
+convert xs = listArray (0, length xs - 1) xs
 
 type Value = Int
 type Address = Int
@@ -62,7 +62,7 @@ type FeedbackMachineState = State [Machine]
 data ParameterMode = Position | Immediate
 
 buildMachine :: [Value] -> Machine
-buildMachine input = Machine { memory   = (convert input)
+buildMachine input = Machine { memory   = convert input
                              , opCode   = 0
                              , input    = []
                              , output   = 0
@@ -79,7 +79,7 @@ perms = permutations [0, 1, 2, 3, 4]
 feedbackPerms = permutations [5, 6, 7, 8, 9]
 
 runConnected :: Machine -> [Value] -> IO Value
-runConnected m (s0 : s1 : s2 : s3 : s4 : []) = do
+runConnected m [s0, s1, s2, s3, s4] = do
   let m1 = connect s0 0 m
   o1 <- return . output $ execState runUntilHalt m1
   let m2 = connect s1 o1 m
@@ -92,7 +92,7 @@ runConnected m (s0 : s1 : s2 : s3 : s4 : []) = do
   return . output $ execState runUntilHalt m5
 
 liveConnected :: Machine -> [Value] -> IO Value
-liveConnected m (s0 : s1 : s2 : s3 : s4 : []) =
+liveConnected m [s0, s1, s2, s3, s4] =
   return . output . last $ execState
     runThrusterUntilHalt
     [ m { input = [s0, 0] }
@@ -171,7 +171,7 @@ tickAll = do
   machines <- get
   modify
     $   const
-    $   (\m -> if (runState m) == Running then execState tick m else m)
+    $   (\m -> if runState m == Running then execState tick m else m)
     <$> machines
 
 -- 9246095        

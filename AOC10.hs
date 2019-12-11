@@ -21,6 +21,7 @@ import qualified Data.Set                      as Set
 import           Data.List                      ( maximumBy
                                                 , sortBy
                                                 )
+import           Data.Functor                   ( ($>) )
 
 data Point = Point {_x :: Int, _y :: Int} deriving (Show, Eq, Ord)
 type Angle = Double
@@ -32,11 +33,11 @@ asteroidParser = do
   return [Point { _x = sourceColumn pos - 2, _y = sourceLine pos - 1 }]
 
 emptyParser :: Parser [Point]
-emptyParser = string "." *> return []
+emptyParser = string "." $> []
 
 lineParser :: Parser [Point]
 lineParser =
-  concat <$> (many1 (asteroidParser <|> emptyParser)) <* skipMany space
+  concat <$> many1 (asteroidParser <|> emptyParser) <* skipMany space
 
 calculateAngle :: Point -> Point -> Angle
 --calculateAngle p1 p2 = let half_circle = 180
@@ -45,7 +46,7 @@ calculateAngle :: Point -> Point -> Angle
 calculateAngle p1 p2 =
   let half_circle = 180
       a =
-          (atan2 (fromIntegral $ _x p1 - _x p2) (fromIntegral $ _y p2 - _y p1))
+          atan2 (fromIntegral $ _x p1 - _x p2) (fromIntegral $ _y p2 - _y p1)
             / pi
             * half_circle
   in  toNormAngle (180 + a)

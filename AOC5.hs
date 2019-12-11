@@ -37,10 +37,10 @@ number = read <$> many1 digit
 negativeNumber :: Parser Int
 negativeNumber = negate . read <$> (string "-" *> many1 digit)
 
-parseOp = (number <|> negativeNumber) `sepBy` (string ",")
+parseOp = (number <|> negativeNumber) `sepBy` string ","
 
 convert :: [Int] -> Array Int Int
-convert xs = listArray (0, (length xs) - 1) xs
+convert xs = listArray (0, length xs - 1) xs
 
 type Value = Int
 type Address = Int
@@ -52,7 +52,7 @@ data ParameterMode = Position | Immediate
 
 buildMachine :: [Value] -> Machine
 buildMachine input =
-  Machine { memory = (convert input), opCode = 0, input = 0, output = 0 }
+  Machine { memory = convert input, opCode = 0, input = 0, output = 0 }
 
 setup :: Value -> Value -> Machine -> Machine
 setup input' output' m = m { input = input', output = output' }

@@ -58,7 +58,7 @@ lineToPoints :: [Point] -> Line -> [Point]
 lineToPoints [] l                    = lineToPoints [Point 0 0] l
 lineToPoints ps Line { _length = 0 } = ps
 lineToPoints ps@(p : _) l@Line { _direction = dir } =
-  lineToPoints ((nextPoint p dir) : ps) (shorten l)
+  lineToPoints (nextPoint p dir : ps) (shorten l)
 
 nextPoint :: Point -> Direction -> Point
 nextPoint Point { _x = x, _y = y } UP    = Point { _x = x, _y = y + 1 }
@@ -68,13 +68,13 @@ nextPoint Point { _x = x, _y = y } RIGHT = Point { _x = x + 1, _y = y }
 
 shorten :: Line -> Line
 shorten Line { _direction = d, _length = l } =
-  Line { _direction = d, _length = (l - 1) }
+  Line { _direction = d, _length = l - 1 }
 
 wireToPointCloud :: Wire -> Set Point
 wireToPointCloud lines = Set.fromList $ foldl lineToPoints [] lines
 
 crossings :: [Set Point] -> Set Point
-crossings (s : []) = s
+crossings [s] = s
 crossings (s : ss) = Set.intersection s $ crossings ss
 
 manhattanDistance :: Point -> Point -> Int

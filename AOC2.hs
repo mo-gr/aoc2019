@@ -30,10 +30,10 @@ import           Control.Monad.State.Strict     ( State
 number :: Parser Int
 number = read <$> many1 digit
 
-parseOp = number `sepBy` (string ",")
+parseOp = number `sepBy` string ","
 
 convert :: [Int] -> Array Int Int
-convert xs = listArray (0, (length xs) - 1) xs
+convert xs = listArray (0, length xs - 1) xs
 
 type Value = Int
 type Address = Int
@@ -41,11 +41,11 @@ data Machine = Machine { memory :: Array Address Value, opCode :: Address }
 type MachineState = State Machine
 
 buildMachine :: [Value] -> Machine
-buildMachine input = Machine { memory = (convert input), opCode = 0 }
+buildMachine input = Machine { memory = convert input, opCode = 0 }
 
 setup :: Value -> Value -> Machine -> Machine
 setup verb noun m =
-  Machine { memory = (memory m) // [(1, verb), (2, noun)], opCode = 0 }
+  Machine { memory = memory m // [(1, verb), (2, noun)], opCode = 0 }
 
 -- 4576384
 solution1 :: IO Value

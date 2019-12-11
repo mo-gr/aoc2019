@@ -68,7 +68,7 @@ allParents :: [Orbit] -> Planet -> [Planet]
 allParents os = allParents' os os where
   allParents' _ [] _ = []
   allParents' os (o : _) p | outer o == p =
-    (center o) : allParents' os os (center o)
+    center o : allParents' os os (center o)
   allParents' os (o : os') p = allParents' os os' p
 
 orbitSum :: [WeightedOrbit] -> Int
@@ -80,7 +80,7 @@ transferCount os p1 p2 =
       p1Parents      = allParents orbits p1
       p2Parents      = allParents orbits p2
       commonParents  = intersection (fromList p1Parents) (fromList p2Parents)
-      withoutCommons = filter (\p -> notMember p commonParents)
+      withoutCommons = filter ((`notMember` commonParents))
   in  length (withoutCommons p1Parents) + length (withoutCommons p2Parents)
 
 -- 194721
@@ -126,7 +126,7 @@ prop_transfer =
         $ H.property
         $ case parse inputParser "example_transfer" transfer_example of
             Right x ->
-              (transferCount (map (calculateDistanceToCom x) x) you santa)
+              transferCount (map (calculateDistanceToCom x) x) you santa
                 H.=== 4
             Left e -> H.footnote (show e) >> H.failure
 

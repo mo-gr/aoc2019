@@ -38,7 +38,7 @@ number = read <$> many1 digit
 negativeNumber :: Parser Int
 negativeNumber = negate . read <$> (string "-" *> many1 digit)
 
-parseOp = (number <|> negativeNumber) `sepBy` (string ",")
+parseOp = (number <|> negativeNumber) `sepBy` string ","
 
 convert :: [Int] -> Map.Map Int Int
 convert xs = Map.fromList $ zip [0 ..] xs
@@ -59,7 +59,7 @@ data RunState = Halt | WaitingForInput | Running deriving (Show, Eq)
 data ParameterMode = Position | Immediate | Relative deriving (Show, Eq)
 
 buildMachine :: [Value] -> Machine
-buildMachine input = Machine { memory   = (convert input)
+buildMachine input = Machine { memory   = convert input
                              , opCode   = 0
                              , relBase  = 0
                              , input    = []
@@ -87,15 +87,15 @@ tick :: MachineState ()
 tick = do
   opAddr    <- gets opCode
   operation <- load Immediate opAddr
-  case (operation `mod` 100) of
-    1  -> opAdd `uncurrry` (decodeParameterMode3 operation)
-    2  -> opMul `uncurrry` (decodeParameterMode3 operation)
+  case operation `mod` 100 of
+    1  -> opAdd `uncurrry` decodeParameterMode3 operation
+    2  -> opMul `uncurrry` decodeParameterMode3 operation
     3  -> readInput (decodeParameterMode1 operation)
     4  -> writeOutput (decodeParameterMode1 operation)
-    5  -> jmpIfTrue `uncurry` (decodeParameterMode2 operation)
-    6  -> jmpIfFalse `uncurry` (decodeParameterMode2 operation)
-    7  -> opLT `uncurrry` (decodeParameterMode3 operation)
-    8  -> opEq `uncurrry` (decodeParameterMode3 operation)
+    5  -> jmpIfTrue `uncurry` decodeParameterMode2 operation
+    6  -> jmpIfFalse `uncurry` decodeParameterMode2 operation
+    7  -> opLT `uncurrry` decodeParameterMode3 operation
+    8  -> opEq `uncurrry` decodeParameterMode3 operation
     9  -> adjustRelBase (decodeParameterMode1 operation)
     99 -> halt
     x  -> error $ "unknown opcode: " ++ show x
@@ -115,7 +115,7 @@ toParameterMode 2 = Relative
 decodeParameterMode3 :: Value -> (ParameterMode, (ParameterMode, ParameterMode))
 decodeParameterMode3 x =
   ( toParameterMode . nthDigit 2 $ x
-  , ((toParameterMode . nthDigit 3 $ x), (toParameterMode . nthDigit 4 $ x))
+  , (toParameterMode . nthDigit 3 $ x, toParameterMode . nthDigit 4 $ x)
   )
 
 decodeParameterMode2 :: Value -> (ParameterMode, ParameterMode)
@@ -362,19 +362,19 @@ prop_quine = H.withTests 1 $ H.property $ do
         , 0
         , 99
         ]
-  let m  = (buildMachine quine)
+  let m  = buildMachine quine
   let m' = execState runUntilHalt m
   output m' H.=== quine
 
 prop_large_num :: H.Property
 prop_large_num = H.withTests 1 $ H.property $ do
-  let m  = (buildMachine [104, 1125899906842624, 99])
+  let m  = buildMachine [104, 1125899906842624, 99]
   let m' = execState runUntilHalt m
   output m' H.=== [1125899906842624]
 
 prop_long_num :: H.Property
 prop_long_num = H.withTests 1 $ H.property $ do
-  let m = (buildMachine [1102, 34915192, 34915192, 7, 4, 7, 99, 0])
+  let m = buildMachine [1102, 34915192, 34915192, 7, 4, 7, 99, 0]
   let m' = execState runUntilHalt m
   output m' H.=== [1219070632396864]
 
