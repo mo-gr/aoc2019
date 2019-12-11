@@ -27,7 +27,7 @@ import           Data.Set                       ( fromList )
 import qualified Hedgehog                      as H
 import qualified Hedgehog.Gen                  as Gen
 import qualified Hedgehog.Range                as Range
-import           Debug.Trace                    ( trace )
+--import           Debug.Trace                    ( trace )
 
 number :: Parser Int
 number = read <$> many1 digit

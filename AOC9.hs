@@ -5,8 +5,6 @@ module AOC9 (solution1, solution2) where
 import           Text.Parsec                    ( digit
                                                 , many1
                                                 , parse
-                                                , skipMany
-                                                , space
                                                 , string
                                                 , (<|>)
                                                 , sepBy
@@ -15,29 +13,22 @@ import           Text.Parsec.ByteString         ( Parser
                                                 , parseFromFile
                                                 )
 import qualified Data.Map.Strict               as Map
-import           Data.Maybe                     ( isJust )
 import           Control.Monad.State.Strict     ( State
-                                                , get
                                                 , gets
-                                                , put
                                                 , execState
                                                 , modify
                                                 , modify'
                                                 )
-import           Control.Monad                  ( liftM
-                                                , sequence
-                                                )
 import qualified Hedgehog                      as H
 import qualified Hedgehog.Gen                  as Gen
 import qualified Hedgehog.Range                as Range
-import           Data.List                      ( permutations )
-import           Debug.Trace                    ( trace )
 
 number :: Parser Int
 number = read <$> many1 digit
 negativeNumber :: Parser Int
 negativeNumber = negate . read <$> (string "-" *> many1 digit)
 
+parseOp :: Parser [Int]
 parseOp = (number <|> negativeNumber) `sepBy` string ","
 
 convert :: [Int] -> Map.Map Int Int
@@ -59,7 +50,7 @@ data RunState = Halt | WaitingForInput | Running deriving (Show, Eq)
 data ParameterMode = Position | Immediate | Relative deriving (Show, Eq)
 
 buildMachine :: [Value] -> Machine
-buildMachine input = Machine { memory   = convert input
+buildMachine input' = Machine { memory   = convert input'
                              , opCode   = 0
                              , relBase  = 0
                              , input    = []
@@ -73,6 +64,7 @@ solution1 = do
   ops <- parseFromFile parseOp "AOC9.input"
   let machine = buildMachine <$> ops
   case machine of
+    Left e -> error . show $ e
     Right m -> return . output $ execState runUntilHalt (m { input = [1] })
 
 solution2 :: IO [Value]
@@ -80,6 +72,7 @@ solution2 = do
   ops <- parseFromFile parseOp "AOC9.input"
   let machine = buildMachine <$> ops
   case machine of
+    Left e -> error . show $ e
     Right m -> return . output $ execState runUntilHalt (m { input = [2] })
 
 
@@ -111,6 +104,7 @@ toParameterMode :: Int -> ParameterMode
 toParameterMode 0 = Position
 toParameterMode 1 = Immediate
 toParameterMode 2 = Relative
+toParameterMode _ = error "unexpected parameter mode"
 
 decodeParameterMode3 :: Value -> (ParameterMode, (ParameterMode, ParameterMode))
 decodeParameterMode3 x =
@@ -162,7 +156,9 @@ writeOutput p = do
   output' <- gets output
   modify' (\s -> s { opCode = o + 2, output = output' ++ [val] })
 
+jmpIfTrue :: ParameterMode -> ParameterMode -> MachineState ()
 jmpIfTrue = jmpCond (/= 0)
+jmpIfFalse :: ParameterMode -> ParameterMode -> MachineState ()
 jmpIfFalse = jmpCond (== 0)
 
 jmpCond :: (Value -> Bool) -> ParameterMode -> ParameterMode -> MachineState ()
@@ -378,8 +374,8 @@ prop_long_num = H.withTests 1 $ H.property $ do
   let m' = execState runUntilHalt m
   output m' H.=== [1219070632396864]
 
-tests :: IO Bool
-tests = H.checkParallel $ H.Group
+_tests :: IO Bool
+_tests = H.checkParallel $ H.Group
   "AOC5"
   [ ("prop_parser"       , prop_parser)
   , ("prop_example_mul"  , prop_example_mul)

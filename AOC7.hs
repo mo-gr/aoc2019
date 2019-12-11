@@ -1,12 +1,14 @@
 {-# LANGUAGE OverloadedStrings          #-}
 
-module AOC7 (solution1, solution2) where
+module AOC7
+  ( solution1
+  , solution2
+  )
+where
 
 import           Text.Parsec                    ( digit
                                                 , many1
                                                 , parse
-                                                , skipMany
-                                                , space
                                                 , string
                                                 , (<|>)
                                                 , sepBy
@@ -19,28 +21,24 @@ import           Data.Array                     ( Array
                                                 , (//)
                                                 , listArray
                                                 )
-import           Data.Maybe                     ( isJust )
 import           Control.Monad.State.Strict     ( State
-                                                , get
                                                 , gets
-                                                , put
                                                 , execState
                                                 , modify
+                                                , get
                                                 )
-import           Control.Monad                  ( liftM
-                                                , sequence
-                                                )
+import           Control.Monad                  ( sequence )
 import qualified Hedgehog                      as H
 import qualified Hedgehog.Gen                  as Gen
 import qualified Hedgehog.Range                as Range
 import           Data.List                      ( permutations )
-import           Debug.Trace                    ( trace )
 
 number :: Parser Int
 number = read <$> many1 digit
 negativeNumber :: Parser Int
 negativeNumber = negate . read <$> (string "-" *> many1 digit)
 
+parseOp :: Parser [Int]
 parseOp = (number <|> negativeNumber) `sepBy` string ","
 
 convert :: [Int] -> Array Int Int
@@ -62,20 +60,19 @@ type FeedbackMachineState = State [Machine]
 data ParameterMode = Position | Immediate
 
 buildMachine :: [Value] -> Machine
-buildMachine input = Machine { memory   = convert input
-                             , opCode   = 0
-                             , input    = []
-                             , output   = 0
-                             , runState = Running
-                             }
-
-setup :: Value -> Value -> Machine -> Machine
-setup input' output' m = m { input = [input'], output = output' }
+buildMachine input' = Machine { memory   = convert input'
+                              , opCode   = 0
+                              , input    = []
+                              , output   = 0
+                              , runState = Running
+                              }
 
 connect :: Value -> Value -> Machine -> Machine
 connect input' input'' m = m { input = [input', input''] }
 
+perms :: [[Value]]
 perms = permutations [0, 1, 2, 3, 4]
+feedbackPerms :: [[Value]]
 feedbackPerms = permutations [5, 6, 7, 8, 9]
 
 runConnected :: Machine -> [Value] -> IO Value
@@ -90,17 +87,18 @@ runConnected m [s0, s1, s2, s3, s4] = do
   o4 <- return . output $ execState runUntilHalt m4
   let m5 = connect s4 o4 m
   return . output $ execState runUntilHalt m5
+runConnected _ _ = error "unexpected configuration"
 
 liveConnected :: Machine -> [Value] -> IO Value
-liveConnected m [s0, s1, s2, s3, s4] =
-  return . output . last $ execState
-    runThrusterUntilHalt
-    [ m { input = [s0, 0] }
-    , m { input = [s1] }
-    , m { input = [s2] }
-    , m { input = [s3] }
-    , m { input = [s4] }
-    ]
+liveConnected m [s0, s1, s2, s3, s4] = return . output . last $ execState
+  runThrusterUntilHalt
+  [ m { input = [s0, 0] }
+  , m { input = [s1] }
+  , m { input = [s2] }
+  , m { input = [s3] }
+  , m { input = [s4] }
+  ]
+liveConnected _ _ = error "unexpected configuration"
 
 -- 298586
 solution1 :: IO Value
@@ -108,6 +106,7 @@ solution1 = do
   ops <- parseFromFile parseOp "AOC7.input"
   let machine = buildMachine <$> ops
   case machine of
+    Left  e -> error . show $ e
     Right m -> maximum <$> sequence (runConnected m <$> perms)
 
 runThrusterUntilHalt :: FeedbackMachineState ()
@@ -117,51 +116,61 @@ runThrusterUntilHalt = do
     [_, _, _, _, Halt] -> return ()
     [WritingOutput, _, _, _, _] ->
       modify
-          (\(m0 : m1 : ms) ->
-            m0 { runState = Running }
-              : m1 { runState = Running, input = input m1 ++ [output m0] }
-              : ms
+          (\machines -> case machines of
+            (m0 : m1 : ms) ->
+              m0 { runState = Running }
+                : m1 { runState = Running, input = input m1 ++ [output m0] }
+                : ms
+            _ -> error "unexpected state"
           )
         >> runThrusterUntilHalt
     [_, WritingOutput, _, _, _] ->
       modify
-          (\(m0 : m1 : m2 : ms) ->
-            m0
-              : m1 { runState = Running }
-              : m2 { runState = Running, input = input m2 ++ [output m1] }
-              : ms
+          (\machines -> case machines of
+            (m0 : m1 : m2 : ms) ->
+              m0
+                : m1 { runState = Running }
+                : m2 { runState = Running, input = input m2 ++ [output m1] }
+                : ms
+            _ -> error "unexpected state"
           )
         >> runThrusterUntilHalt
     [_, _, WritingOutput, _, _] ->
       modify
-          (\(m0 : m1 : m2 : m3 : ms) ->
-            m0
-              : m1
-              : m2 { runState = Running }
-              : m3 { runState = Running, input = input m3 ++ [output m2] }
-              : ms
+          (\machines -> case machines of
+            (m0 : m1 : m2 : m3 : ms) ->
+              m0
+                : m1
+                : m2 { runState = Running }
+                : m3 { runState = Running, input = input m3 ++ [output m2] }
+                : ms
+            _ -> error "unexpected state"
           )
         >> runThrusterUntilHalt
     [_, _, _, WritingOutput, _] ->
       modify
-          (\(m0 : m1 : m2 : m3 : m4 : ms) ->
-            m0
-              : m1
-              : m2
-              : m3 { runState = Running }
-              : m4 { runState = Running, input = input m4 ++ [output m3] }
-              : ms
+          (\machines -> case machines of
+            (m0 : m1 : m2 : m3 : m4 : ms) ->
+              m0
+                : m1
+                : m2
+                : m3 { runState = Running }
+                : m4 { runState = Running, input = input m4 ++ [output m3] }
+                : ms
+            _ -> error "unexpected state"
           )
         >> runThrusterUntilHalt
     [_, _, _, _, WritingOutput] ->
       modify
-          (\(m0 : m1 : m2 : m3 : m4 : ms) ->
-            m0 { runState = Running, input = input m0 ++ [output m4] }
-              : m1
-              : m2
-              : m3
-              : m4 { runState = Running }
-              : ms
+          (\machines -> case machines of
+            (m0 : m1 : m2 : m3 : m4 : ms) ->
+              m0 { runState = Running, input = input m0 ++ [output m4] }
+                : m1
+                : m2
+                : m3
+                : m4 { runState = Running }
+                : ms
+            _ -> error "unexpected state"
           )
         >> runThrusterUntilHalt
     _ -> tickAll >> runThrusterUntilHalt
@@ -180,6 +189,7 @@ solution2 = do
   ops <- parseFromFile parseOp "AOC7.input"
   let machine = buildMachine <$> ops
   case machine of
+    Left  e -> error . show $ e
     Right m -> maximum <$> sequence (liveConnected m <$> feedbackPerms)
 
 
@@ -237,7 +247,7 @@ readInput p = do
   case input' of
     []       -> modify (\s -> s { runState = WaitingForInput })
     (x : xs) -> do
-      store Position (o + 1) x
+      store p (o + 1) x
       modify (\s -> s { opCode = o + 2, input = xs })
 
 writeOutput :: ParameterMode -> MachineState ()
@@ -246,7 +256,9 @@ writeOutput p = do
   val <- load p (o + 1)
   modify (\s -> s { opCode = o + 2, output = val, runState = WritingOutput })
 
+jmpIfTrue :: ParameterMode -> ParameterMode -> MachineState ()
 jmpIfTrue = jmpCond (/= 0)
+jmpIfFalse :: ParameterMode -> ParameterMode -> MachineState ()
 jmpIfFalse = jmpCond (== 0)
 
 jmpCond :: (Value -> Bool) -> ParameterMode -> ParameterMode -> MachineState ()
@@ -408,8 +420,8 @@ prop_example2 = H.property $ do
   let m' = execState runUntilHalt m
   output m' H.=== 999
 
-tests :: IO Bool
-tests = H.checkParallel $ H.Group
+_tests :: IO Bool
+_tests = H.checkParallel $ H.Group
   "AOC5"
   [ ("prop_parser"       , prop_parser)
   , ("prop_example_mul"  , prop_example_mul)

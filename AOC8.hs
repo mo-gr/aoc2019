@@ -1,21 +1,19 @@
 {-# LANGUAGE OverloadedStrings          #-}
 
-module AOC8 (solution1, solution2) where
+module AOC8
+  ( solution1
+  , solution2
+  )
+where
 
-import           Text.Parsec                    ( digit
-                                                , many1
-                                                , parse
-                                                , skipMany
-                                                , space
+import           Text.Parsec                    ( many1
                                                 , string
                                                 , (<|>)
-                                                , sepBy
                                                 , count
                                                 )
 import           Text.Parsec.ByteString         ( Parser
                                                 , parseFromFile
                                                 )
-import           Data.List                      ( sort )
 import           Data.Functor                   ( ($>) )
 
 
@@ -42,8 +40,8 @@ pixelParser = string "0" $> 0 <|> string "1" $> 1 <|> string "2" $> 2
 
 layerParser :: Int -> Int -> Parser Layer
 layerParser w h = do
-  pixels <- count (w * h) pixelParser
-  return $ Layer pixels w h
+  pixels' <- count (w * h) pixelParser
+  return $ Layer pixels' w h
 
 checksum :: Layer -> Int
 checksum l =
@@ -58,7 +56,7 @@ printLayer l = do
   let fakeColor :: Int -> String
       fakeColor 0 = " "
       fakeColor 1 = "X"
-      fakeColor 2 = " "
+      fakeColor _ = " "
   let printLine [] = return ()
       printLine ps = do
         putStrLn $ unwords $ fakeColor <$> take width' ps
@@ -70,11 +68,16 @@ solution1 :: IO Int
 solution1 = do
   layers <- parseFromFile (many1 $ layerParser 25 6) "AOC8.input"
   case layers of
+    Left  e -> error . show $ e
     Right l -> return . checksum . minimum $ l
 -- KYHFE
 solution2 :: IO ()
 solution2 = do
   layers <- parseFromFile (many1 $ layerParser 25 6) "AOC8.input"
   case layers of
+    Left  e -> error . show $ e
     Right l -> printLayer . mconcat $ l
+
+
+
 

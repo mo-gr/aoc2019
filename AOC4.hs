@@ -1,6 +1,9 @@
-module AOC4 (solution1, solution2) where
+module AOC4
+  ( solution1
+  , solution2
+  )
+where
 
-import           Data.List                      ( find )
 
 toDigits :: Int -> [Int]
 toDigits x | x <= 9 = [x]
@@ -8,32 +11,31 @@ toDigits x          = toDigits (div x 10) ++ [mod x 10]
 
 inputRange :: [Int]
 inputRange = [165432 .. 707912]
-inputRange' = [1200 .. 2000]
 
 isMonotonous :: Int -> Bool
 isMonotonous x =
   let digits = toDigits x
-      f []                  = True
-      f (x : y : _) | x > y = False
-      f (x : xs)            = f xs
+      f []                    = True
+      f (x' : y : _) | x' > y = False
+      f (_ : xs)              = f xs
   in  f digits
 
 
 hasDoubles :: Int -> Bool
 hasDoubles x =
   let digits = toDigits x
-      f []                    = False
-      f (x : y : xs) | x == y = True
-      f (x : xs)              = f xs
+      f []                     = False
+      f (x' : y : _) | x' == y = True
+      f (_ : xs)               = f xs
   in  f digits
 
 hasProperDoubles :: Int -> Bool
 hasProperDoubles x =
   let digits = toDigits x
-      f []                    = False
-      f (x : y : z : xs) | x == y && y == z = f (filter (/= x) xs)
-      f (x : y : xs) | x == y = True
-      f (x : xs)              = f xs
+      f []                     = False
+      f (x' : y : z : xs) | x == y && y == z = f (filter (/= x') xs)
+      f (x' : y : _) | x' == y = True
+      f (_ : xs)               = f xs
   in  f digits
 
 search :: [Int] -> [Int]

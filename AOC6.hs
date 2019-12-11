@@ -1,27 +1,25 @@
 {-# LANGUAGE OverloadedStrings          #-}
-module AOC6 (solution1, solution2) where
-
-import           Text.Parsec                    ( digit
-                                                , many1
+module AOC6
+  ( solution1
+  , solution2
+  )
+where
+  
+import           Data.ByteString                ( ByteString )
+import           Text.Parsec                    ( many1
                                                 , parse
                                                 , skipMany
                                                 , alphaNum
                                                 , space
                                                 , string
-                                                , (<|>)
-                                                , sepBy
                                                 )
 import           Text.Parsec.ByteString         ( Parser
                                                 , parseFromFile
                                                 )
 import qualified Hedgehog                      as H
-import qualified Hedgehog.Gen                  as Gen
-import qualified Hedgehog.Range                as Range
-import           Data.Functor                   ( ($>) )
 import           Data.List                      ( find )
 import           Data.Maybe                     ( fromMaybe )
-import           Data.Set                       ( Set
-                                                , fromList
+import           Data.Set                       ( fromList
                                                 , intersection
                                                 , notMember
                                                 )
@@ -33,15 +31,12 @@ type WeightedOrbit = (Orbit, Int)
 com :: Planet
 com = Planet "COM"
 
-comParser :: Parser Planet
-comParser = string "COM" $> com
-
 planetParser :: Parser Planet
 planetParser = do
-  name <- many1 alphaNum
-  return $ case name of
+  name' <- many1 alphaNum
+  return $ case name' of
     "COM" -> com
-    _     -> Planet name
+    _     -> Planet name'
 
 orbitParser :: Parser Orbit
 orbitParser = do
@@ -65,11 +60,11 @@ calculateDistanceToCom os o                  = fromMaybe (o, 1) $ do
   return (o, 1 + pw)
 
 allParents :: [Orbit] -> Planet -> [Planet]
-allParents os = allParents' os os where
+allParents os' = allParents' os' os' where
   allParents' _ [] _ = []
   allParents' os (o : _) p | outer o == p =
     center o : allParents' os os (center o)
-  allParents' os (o : os') p = allParents' os os' p
+  allParents' os (_o : os'') p = allParents' os os'' p
 
 orbitSum :: [WeightedOrbit] -> Int
 orbitSum = sum . map snd
@@ -80,7 +75,7 @@ transferCount os p1 p2 =
       p1Parents      = allParents orbits p1
       p2Parents      = allParents orbits p2
       commonParents  = intersection (fromList p1Parents) (fromList p2Parents)
-      withoutCommons = filter ((`notMember` commonParents))
+      withoutCommons = filter (`notMember` commonParents)
   in  length (withoutCommons p1Parents) + length (withoutCommons p2Parents)
 
 -- 194721
@@ -126,8 +121,7 @@ prop_transfer =
         $ H.property
         $ case parse inputParser "example_transfer" transfer_example of
             Right x ->
-              transferCount (map (calculateDistanceToCom x) x) you santa
-                H.=== 4
+              transferCount (map (calculateDistanceToCom x) x) you santa H.=== 4
             Left e -> H.footnote (show e) >> H.failure
 
 prop_parents :: H.Property
@@ -143,12 +137,14 @@ prop_parents =
                 H.=== ["K", "J", "E", "D", "C", "B", "COM"]
             Left e -> H.footnote (show e) >> H.failure
 
+example :: ByteString
 example = "COM)B B)C C)D D)E E)F B)G G)H D)I E)J J)K K)L"
 
+transfer_example :: ByteString
 transfer_example = "COM)B B)C C)D D)E E)F B)G G)H D)I E)J J)K K)L K)YOU I)SAN"
 
-tests :: IO Bool
-tests = H.checkParallel $ H.Group
+_tests :: IO Bool
+_tests = H.checkParallel $ H.Group
   "AOC5"
   [ ("prop_parser"  , prop_parser)
   , ("prop_example" , prop_example)

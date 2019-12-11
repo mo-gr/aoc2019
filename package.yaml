@@ -8,6 +8,7 @@ dependencies:
 - mtl
 - array
 - hedgehog
+- bytestring
 executables:
   AOC:
     main: Main.hs

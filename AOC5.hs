@@ -1,12 +1,14 @@
 {-# LANGUAGE OverloadedStrings          #-}
 
-module AOC5 (solution1, solution2) where
+module AOC5
+  ( solution1
+  , solution2
+  )
+where
 
 import           Text.Parsec                    ( digit
                                                 , many1
                                                 , parse
-                                                , skipMany
-                                                , space
                                                 , string
                                                 , (<|>)
                                                 , sepBy
@@ -19,24 +21,22 @@ import           Data.Array                     ( Array
                                                 , (//)
                                                 , listArray
                                                 )
-import           Data.Maybe                     ( isJust )
 import           Control.Monad.State.Strict     ( State
-                                                , get
                                                 , gets
-                                                , put
                                                 , execState
                                                 , modify
                                                 )
 import qualified Hedgehog                      as H
 import qualified Hedgehog.Gen                  as Gen
 import qualified Hedgehog.Range                as Range
-import           Debug.Trace                    ( trace )
 
 number :: Parser Int
 number = read <$> many1 digit
+
 negativeNumber :: Parser Int
 negativeNumber = negate . read <$> (string "-" *> many1 digit)
 
+parseOp :: Parser [Int]
 parseOp = (number <|> negativeNumber) `sepBy` string ","
 
 convert :: [Int] -> Array Int Int
@@ -46,13 +46,12 @@ type Value = Int
 type Address = Int
 data Machine = Machine { memory :: Array Address Value, opCode :: Address, input :: Value, output :: Value } deriving (Show, Eq)
 type MachineState = State Machine
-data Running = Halt | Running
 
 data ParameterMode = Position | Immediate
 
 buildMachine :: [Value] -> Machine
-buildMachine input =
-  Machine { memory = convert input, opCode = 0, input = 0, output = 0 }
+buildMachine input' =
+  Machine { memory = convert input', opCode = 0, input = 0, output = 0 }
 
 setup :: Value -> Value -> Machine -> Machine
 setup input' output' m = m { input = input', output = output' }
@@ -61,8 +60,8 @@ setup input' output' m = m { input = input', output = output' }
 solution1 :: IO Value
 solution1 = do
   ops <- parseFromFile parseOp "AOC5.input"
-  let input = setup 1 0 . buildMachine <$> ops
-  case input of
+  let input' = setup 1 0 . buildMachine <$> ops
+  case input' of
     Right m -> return . output $ execState runUntilHalt m
     Left  e -> error $ show e
 
@@ -70,8 +69,8 @@ solution1 = do
 solution2 :: IO Value
 solution2 = do
   ops <- parseFromFile parseOp "AOC5.input"
-  let input = setup 5 0 . buildMachine <$> ops
-  case input of
+  let input' = setup 5 0 . buildMachine <$> ops
+  case input' of
     Right m -> return . output $ execState runUntilHalt m
     Left  e -> error $ show e
 
@@ -124,7 +123,7 @@ readInput :: ParameterMode -> MachineState ()
 readInput p = do
   o      <- gets opCode
   input' <- gets input
-  store Position (o + 1) input'
+  store p (o + 1) input'
   modify (\s -> s { opCode = o + 2 })
 
 writeOutput :: ParameterMode -> MachineState ()
@@ -133,7 +132,9 @@ writeOutput p = do
   val <- load p (o + 1)
   modify (\s -> s { opCode = o + 2, output = val })
 
+jmpIfTrue :: ParameterMode -> ParameterMode -> MachineState ()
 jmpIfTrue = jmpCond (/= 0)
+jmpIfFalse :: ParameterMode -> ParameterMode -> MachineState ()
 jmpIfFalse = jmpCond (== 0)
 
 jmpCond :: (Value -> Bool) -> ParameterMode -> ParameterMode -> MachineState ()
@@ -291,8 +292,8 @@ prop_example2 = H.property $ do
   let m' = execState runUntilHalt m
   output m' H.=== 999
 
-tests :: IO Bool
-tests = H.checkParallel $ H.Group
+_tests :: IO Bool
+_tests = H.checkParallel $ H.Group
   "AOC5"
   [ ("prop_parser"       , prop_parser)
   , ("prop_example_mul"  , prop_example_mul)

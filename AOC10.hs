@@ -1,15 +1,11 @@
 module AOC10 (solution1, solution2) where
 
-import           Text.Parsec                    ( digit
-                                                , many1
+import           Text.Parsec                    ( many1
                                                 , many
-                                                , parse
-                                                , skipMany1
                                                 , skipMany
                                                 , space
                                                 , string
                                                 , (<|>)
-                                                , sepBy
                                                 , getPosition
                                                 , sourceColumn
                                                 , sourceLine
@@ -74,12 +70,12 @@ manhattanDistance p1 p2 =
 magicOrdering :: Point -> (Angle, Point) -> (Angle, Point) -> Ordering
 magicOrdering origin (a1, p1) (a2, p2) | a1 == a2 =
   compare (manhattanDistance origin p1) (manhattanDistance origin p2)
-magicOrdering origin (a1, p1) (a2, p2) = compare a1 a2
+magicOrdering _ (a1, _) (a2, _) = compare a1 a2
 
 offset :: [(Angle, Point)] -> [(Angle, Point)]
 offset ps = head ps : zipWith magic (tail ps) ps where
-  magic (a, p) (a', p') | a == a' = (a + 360, p)
-  magic (a, p) (a', p')           = (a, p)
+  magic (a, p) (a', _) | a == a' = (a + 360, p)
+  magic (a, p) _           = (a, p)
 
 nth :: Int -> [a] -> a
 nth n l = last $ take n l
