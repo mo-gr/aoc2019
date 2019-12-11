@@ -1,42 +1,45 @@
 module AOC4 where
 
-import Data.List (find)
+import           Data.List                      ( find )
 
 toDigits :: Int -> [Int]
 toDigits x | x <= 9 = [x]
-toDigits x = toDigits (div x 10) ++ [mod x 10]
+toDigits x          = toDigits (div x 10) ++ [mod x 10]
 
 inputRange :: [Int]
 inputRange = [165432 .. 707912]
-inputRange' = [1200..2000]
+inputRange' = [1200 .. 2000]
 
 isMonotonous :: Int -> Bool
-isMonotonous x = let digits = toDigits x
-                     f [] = True
-                     f (x:y:_) | x > y = False
-                     f (x:xs) = f xs
-                 in f digits
+isMonotonous x =
+  let digits = toDigits x
+      f []                  = True
+      f (x : y : _) | x > y = False
+      f (x : xs)            = f xs
+  in  f digits
 
 
 hasDoubles :: Int -> Bool
-hasDoubles x = let digits = toDigits x
-                   f [] = False
-                   f (x:y:xs) | x == y = True
-                   f (x:xs) = f xs
-               in f digits
+hasDoubles x =
+  let digits = toDigits x
+      f []                    = False
+      f (x : y : xs) | x == y = True
+      f (x : xs)              = f xs
+  in  f digits
 
 hasProperDoubles :: Int -> Bool
-hasProperDoubles x = let digits = toDigits x
-                         f [] = False
-                         f (x:y:z:xs) | x == y && y == z = f (filter (/= x) xs)
-                         f (x:y:xs) | x == y = True
-                         f (x:xs) = f xs
-                     in f digits
+hasProperDoubles x =
+  let digits = toDigits x
+      f []                    = False
+      f (x : y : z : xs) | x == y && y == z = f (filter (/= x) xs)
+      f (x : y : xs) | x == y = True
+      f (x : xs)              = f xs
+  in  f digits
 
 search :: [Int] -> [Int]
 search = filter (\n -> isMonotonous n && hasDoubles n)
 
-search2  :: [Int] -> [Int]
+search2 :: [Int] -> [Int]
 search2 = filter (\n -> isMonotonous n && hasProperDoubles n)
 
 -- 1716
