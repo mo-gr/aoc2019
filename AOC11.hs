@@ -117,7 +117,7 @@ buildMachine input' = Machine { memory   = convert input'
 uniqueTiles :: Robot -> Int
 uniqueTiles Robot { path = p } = length . fromList $ fst <$> p
 
--- too low: 225
+-- 2539
 solution1 :: IO ()
 solution1 = do
     ops <- parseFromFile parseOp "AOC11.input"
@@ -178,24 +178,26 @@ decodeParameterMode2 x =
 decodeParameterMode1 :: Value -> ParameterMode
 decodeParameterMode1 = toParameterMode . nthDigit 2
 
+currentColorFromRobo :: Robot -> Value
+currentColorFromRobo robo = case currentColor (path robo) (fst . head . path $ robo) of
+    Black -> 0
+    White -> 1
+
 runRobot :: MachineState ()
 runRobot = do
     robotControl <- gets output
     robo <- gets robot
-    let c = case currentColor (path robo) (fst . head . path $ robo) of
-              Black -> 0
-              White -> 1
     case robotControl of
         (color : control : _) -> do
             let robo' = moveRobot . turnRobot control . paintPanel color $ robo
             modify
                 (\s -> s { robot    = robo'
-                         , input    = [c]
+                         , input    = [currentColorFromRobo robo']
                          , runState = Running
                          , output   = []
                          }
                 )
-        _ -> modify (\s -> s { input = [c], runState = Running })
+        _ -> modify (\s -> s { input = [currentColorFromRobo robo], runState = Running })
 
 runUntilHalt :: MachineState ()
 runUntilHalt = do
