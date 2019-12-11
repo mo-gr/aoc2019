@@ -29,6 +29,7 @@ executables:
       AOC8
       AOC9
       AOC10
+      AOC11
 data-files:
 - example.txt
 stability: experimental
