@@ -29,6 +29,15 @@ callisto = makeMoon "callisto" $ Vec3 0 (-2) (-2)
 universe :: [Moon]
 universe = [io, europa, ganymede, callisto]
 
+_sample_universe :: [Moon]
+_sample_universe = [
+    makeMoon "m1" $ Vec3 (-1) (0) (2),
+    makeMoon "m2" $ Vec3 (2) (10) (-7),
+    makeMoon "m3" $ Vec3 (4) (-8) (8),
+    makeMoon "m4" $ Vec3 (3) (5) (-1)
+]
+
+
 kineticEnergy :: Moon -> Value
 kineticEnergy Moon { velocity = Velocity Vec3 { _x, _y, _z } } =
     abs _x + abs _y + abs _z
@@ -76,7 +85,9 @@ times x f a = times (x-1) f (f a)
 
 -- too high: 4513569
 solution1 :: IO Int
-solution1 = return . totalEnergySystem $ times 1000 tick universe
+solution1 = do
+    print $ times 10 tick _sample_universe
+    return . totalEnergySystem $ times 1000 tick universe
 
 solution2 :: IO ()
 solution2 = error "no solution"
