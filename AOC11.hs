@@ -117,6 +117,20 @@ buildMachine input' = Machine { memory   = convert input'
 uniqueTiles :: Robot -> Int
 uniqueTiles Robot { path = p } = length . fromList $ fst <$> p
 
+printPath :: [(Point, Paint)] -> IO ()
+printPath p = let minX = minimum $ fst.fst <$> p
+                  maxX = maximum $ fst.fst <$> p
+                  minY = minimum $ snd.fst <$> p
+                  maxY = maximum $ snd.fst <$> p
+                  charToPrint :: [(Point, Paint)] -> Point -> String
+                  charToPrint [] _ = " "
+                  charToPrint ((p', White): _) q | q == p' = "#"
+                  charToPrint (_p:ps) q = charToPrint ps q
+                  printLine :: [Int] -> Int -> IO ()
+                  printLine [] _ = putStrLn ""
+                  printLine (x:xs) y = putStr (charToPrint p (x,y)) >> printLine xs y
+              in sequence_ $ printLine [minX..maxX] <$> reverse [minY..maxY]
+
 -- 2539
 solution1 :: IO ()
 solution1 = do
@@ -126,13 +140,14 @@ solution1 = do
         Left  e -> error (show e)
         Right m -> print . uniqueTiles . robot $ execState runUntilHalt m
 
-solution2 :: IO [Value]
+-- ZLEBKJRA        
+solution2 :: IO ()
 solution2 = do
     ops <- parseFromFile parseOp "AOC11.input"
     let machine = buildMachine <$> ops
     case machine of
         Left  e -> error (show e)
-        Right m -> return . output $ execState runUntilHalt (m { input = [2] })
+        Right m -> printPath . path . robot $ execState runUntilHalt (m {robot=Robot UP [((0, 0), White)]})
 
 
 tick :: MachineState ()
