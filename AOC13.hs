@@ -17,16 +17,27 @@ import           Text.Parsec.ByteString         ( Parser
                                                 , parseFromFile
                                                 )
 import qualified Data.Map.Strict               as Map
+import Control.Monad (liftM, when)
+import Control.Monad.Trans (lift)
+import Control.Concurrent (threadDelay)
+import Control.Monad.IO.Class (liftIO)
+import System.IO 
 import           Control.Monad.State.Strict     ( State
+                                                , StateT
                                                 , gets
-                                                , execState
+                                                , get
+                                                -- , execState
+                                                , execStateT
                                                 , modify
                                                 , modify'
                                                 )
 import qualified Hedgehog                      as H
 import qualified Hedgehog.Gen                  as Gen
 import qualified Hedgehog.Range                as Range
---import           Debug.Trace                    ( trace )
+import           Debug.Trace                    ( trace )
+import qualified System.Console.ANSI as ANSI
+
+execState = execStateT
 
 number :: Parser Int
 number = read <$> many1 digit
@@ -47,9 +58,11 @@ data Machine = Machine {
     input :: [Value],
     output :: [Value],
     relBase :: Address,
-    runState :: RunState
+    runState :: RunState,
+    ballX :: Value,
+    paddleX :: Value
     } deriving (Show, Eq)
-type MachineState = State Machine
+type MachineState = StateT Machine IO
 data RunState = Halt | WaitingForInput | Running deriving (Show, Eq)
 
 data ParameterMode = Position | Immediate | Relative deriving (Show, Eq)
@@ -61,6 +74,8 @@ buildMachine input' = Machine { memory   = convert input'
                               , input    = []
                               , output   = []
                               , runState = Running
+                              , ballX = 0
+                              , paddleX = 0
                               }
 
 countBlocks :: [Value] -> Int
@@ -76,16 +91,54 @@ solution1 = do
     let machine = buildMachine <$> ops
     case machine of
         Left  e -> error (show e)
-        Right m -> return . countBlocks . output $ execState runUntilHalt m
+        Right m -> 
+            return . countBlocks . output =<< execState runUntilHalt m
 
 solution2 :: IO ()
 solution2 = do
     ops <- parseFromFile parseOp "AOC13.input"
     let machine = buildMachine <$> ops
+        
     case machine of
         Left  e -> error (show e)
-        Right m -> print "not yet"
+        Right m -> do
+          let m' = m {memory=Map.insert 0 2 $ memory m, input=[0] }
+          execState runUntilHaltIO m' >> return ()
 
+--data Tile = Empty | Wall | Block | Paddle | Ball
+
+getTilePrint :: Int -> String
+getTilePrint 0 = " "
+getTilePrint 1 = "#"
+getTilePrint 2 = "X"
+getTilePrint 3 = "-"
+getTilePrint 4 = "."
+getTilePrint x = error $ "invalid output: " ++ show x
+
+type Point = (Value, Value)
+
+outputToScreen :: [Value] -> [(Point, Value)]
+outputToScreen (-1:0:score:vs) = trace ("Score: " ++ (show score)) []
+outputToScreen (x:y:t:vs) = ((x,y), t) : outputToScreen vs
+outputToScreen _ = []
+
+printScreen :: [Value]  -> IO ()
+printScreen p = let 
+                printOutput :: [Int] -> IO ()
+                printOutput [] = return ()
+                printOutput (-1:y:z:xs) = do
+                    ANSI.setCursorPosition 28 2
+                    putStrLn $ show z
+                    printOutput xs
+                printOutput (x:y:z:xs) = do
+                    ANSI.setCursorPosition y x
+                    putStr $ getTilePrint z
+                    printOutput xs
+                printOutput _ = return ()
+                in do 
+                    printOutput p
+                    hFlush stdout
+             
 
 tick :: MachineState ()
 tick = do
@@ -140,6 +193,52 @@ runUntilHalt = do
             tick
             runUntilHalt
 
+getKey :: IO [Char]
+getKey = reverse <$> getKey' ""
+    where getKey' chars = do
+            char <- getChar
+            more <- hReady stdin
+            (if more then getKey' else return) (char:chars)            
+
+readKey :: IO (Maybe Value)
+readKey = do
+    hSetBuffering stdin NoBuffering
+    hSetEcho stdin False
+    ready <- hReady stdin
+    key <- if (ready) then getKey else return ""
+    return $ case key of
+        "\ESC[C" -> Just 1
+        "\ESC[D" -> Just (-1)
+        _ -> Nothing
+
+runUntilHaltIO :: MachineState ()
+runUntilHaltIO = do
+    runState' <- gets runState
+    case runState' of
+        Halt            -> return ()
+        WaitingForInput -> error "waiting for input"
+        Running         -> do
+            output' <- gets output
+            when (length output' >= 3) $ do
+                lift $ printScreen (take 3 output')
+                modify (\s -> s {output=drop 3 output'})
+                when (length output' < 10) $ lift $ threadDelay $  1000
+            case output' of
+                (x:_y:4:_) -> modify (\s -> s {ballX = x})
+                (x:_y:3:_) -> modify (\s -> s {paddleX = x})
+                _ -> return ()
+            bX <- gets ballX
+            pX <- gets paddleX
+            when (bX > pX) $ modify (\s -> s {input=[1]})
+            when (bX < pX) $ modify (\s -> s {input=[-1]})
+            when (bX == pX) $ modify (\s -> s {input=[0]})
+            -- k <- lift readKey
+            -- case k of
+            --     Just k' -> modify (\s -> s {input=[k']})
+            --     Nothing -> return ()
+            tick
+            runUntilHaltIO
+
 halt :: MachineState ()
 halt = modify (\s -> s { runState = Halt })
 
@@ -151,7 +250,7 @@ readInput p = do
         []       -> modify (\s -> s { runState = WaitingForInput })
         (x : xs) -> do
             store p (o + 1) x
-            modify (\s -> s { opCode = o + 2, input = xs })
+            modify (\s -> s { opCode = o + 2, input = [] })
 
 adjustRelBase :: ParameterMode -> MachineState ()
 adjustRelBase p = do
@@ -245,159 +344,3 @@ load :: ParameterMode -> Address -> MachineState Value
 load Immediate = loadDirect
 load Position  = loadIndirect
 load Relative  = loadRelative
-
--- TESTS
-
-prop_parser :: H.Property
-prop_parser =
-    H.withTests 1 $ H.property $ case parse parseOp "test" "101,-1,0,0,99" of
-        Right x -> H.assert $ x == [101, -1, 0, 0, 99]
-        Left  e -> H.footnote (show e) >> H.failure
-
-prop_example_mul :: H.Property
-prop_example_mul = H.withTests 1 $ H.property $ do
-    let m  = buildMachine [1002, 4, 3, 4, 33]
-    let m' = execState tick m
-    m' H.=== (buildMachine [1002, 4, 3, 4, 99]) { opCode = 4 }
-
-prop_example_add :: H.Property
-prop_example_add = H.withTests 1 $ H.property $ do
-    let m  = buildMachine [1101, 100, -1, 4, 0]
-    let m' = execState tick m
-    m' H.=== (buildMachine [1101, 100, -1, 4, 99]) { opCode = 4 }
-
-prop_example_read :: H.Property
-prop_example_read = H.withTests 1 $ H.property $ do
-    let m  = (buildMachine [3, 1, 99]) { input = [42] }
-    let m' = execState tick m
-    m' H.=== (buildMachine [3, 42, 99]) { opCode = 2, input = [] }
-
-prop_in_out :: H.Property
-prop_in_out = H.property $ do
-    in' <- H.forAll $ Gen.int (Range.linear 0 100)
-    let m  = (buildMachine [3, 0, 4, 0, 99]) { input = [in'] }
-    let m' = execState runUntilHalt m
-    output m' H.=== [in']
-
-prop_example :: H.Property
-prop_example = H.withTests 1 $ H.property $ do
-    let m  = buildMachine [1, 1, 1, 4, 99, 5, 6, 0, 99]
-    let m' = execState runUntilHalt m
-    m' H.=== (buildMachine [30, 1, 1, 4, 2, 5, 6, 0, 99]) { opCode   = 8
-                                                          , runState = Halt
-                                                          }
-
-prop_input_example :: H.Property
-prop_input_example = H.withTests 1 $ H.property $ do
-    let m  = (buildMachine [3, 0, 1, 0, 6, 6, 1100]) { input = [1] }
-    let m' = execState (tick >> tick) m
-    m' H.=== (buildMachine [1, 0, 1, 0, 6, 6, 1101]) { opCode = 6, input = [] }
-
-prop_example2 :: H.Property
-prop_example2 = H.withTests 1 $ H.property $ do
-    let m = (buildMachine
-                [ 3
-                , 21
-                , 1008
-                , 21
-                , 8
-                , 20
-                , 1005
-                , 20
-                , 22
-                , 107
-                , 8
-                , 21
-                , 20
-                , 1006
-                , 20
-                , 31
-                , 1106
-                , 0
-                , 36
-                , 98
-                , 0
-                , 0
-                , 1002
-                , 21
-                , 125
-                , 20
-                , 4
-                , 20
-                , 1105
-                , 1
-                , 46
-                , 104
-                , 999
-                , 1105
-                , 1
-                , 46
-                , 1101
-                , 1000
-                , 1
-                , 20
-                , 4
-                , 20
-                , 1105
-                , 1
-                , 46
-                , 98
-                , 99
-                ]
-            ) { input = [0]
-              }
-    let m' = execState runUntilHalt m
-    output m' H.=== [999]
-
-prop_quine :: H.Property
-prop_quine = H.withTests 1 $ H.property $ do
-    let quine =
-            [ 109
-            , 1
-            , 204
-            , -1
-            , 1001
-            , 100
-            , 1
-            , 100
-            , 1008
-            , 100
-            , 16
-            , 101
-            , 1006
-            , 101
-            , 0
-            , 99
-            ]
-    let m  = buildMachine quine
-    let m' = execState runUntilHalt m
-    output m' H.=== quine
-
-prop_large_num :: H.Property
-prop_large_num = H.withTests 1 $ H.property $ do
-    let m  = buildMachine [104, 1125899906842624, 99]
-    let m' = execState runUntilHalt m
-    output m' H.=== [1125899906842624]
-
-prop_long_num :: H.Property
-prop_long_num = H.withTests 1 $ H.property $ do
-    let m = buildMachine [1102, 34915192, 34915192, 7, 4, 7, 99, 0]
-    let m' = execState runUntilHalt m
-    output m' H.=== [1219070632396864]
-
-_tests :: IO Bool
-_tests = H.checkParallel $ H.Group
-    "AOC13"
-    [ ("prop_parser"       , prop_parser)
-    , ("prop_example_mul"  , prop_example_mul)
-    , ("prop_example_add"  , prop_example_add)
-    , ("prop_example_read" , prop_example_read)
-    , ("prop_in_out"       , prop_in_out)
-    , ("prop_example"      , prop_example)
-    , ("prop_example2"     , prop_example2)
-    , ("prop_input_example", prop_input_example)
-    , ("prop_quine"        , prop_quine)
-    , ("prop_large_num"    , prop_large_num)
-    , ("prop_long_num"     , prop_long_num)
-    ]
-
