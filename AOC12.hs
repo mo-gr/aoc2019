@@ -11,8 +11,8 @@ import qualified Hedgehog                      as H
 type Value = Int
 data Vec3 = Vec3 {_x :: Value, _y :: Value, _z :: Value} deriving (Show, Eq, Ord)
 
-newtype Velocity = Velocity Vec3 deriving (Show, Eq, Ord)
-newtype Position = Position Vec3 deriving (Show, Eq, Ord)
+newtype Velocity = Velocity {unVelocity :: Vec3} deriving (Show, Eq, Ord)
+newtype Position = Position {unPosition :: Vec3} deriving (Show, Eq, Ord)
 
 data Moon = Moon {name::String, position::Position, velocity::Velocity} deriving (Show, Eq)
 
@@ -62,6 +62,9 @@ gravityPull m@Moon { position = Position pVec, velocity } Moon { position = Posi
 velPlus :: Velocity -> Velocity -> Velocity
 velPlus (Velocity vVec) (Velocity vVec') = Velocity (vVec `plus` vVec')
 
+posPlus :: Position -> Position -> Position
+posPlus (Position pVec) (Position pVec') = Position (pVec `plus` pVec')
+
 plus :: Vec3 -> Vec3 -> Vec3
 plus Vec3 { _x, _y, _z } Vec3 { _x = _x', _y = _y', _z = _z' } =
     Vec3 (_x + _x') (_y + _y') (_z + _z')
@@ -85,20 +88,55 @@ applyGravity [] m = m
 applyGravity (other : ms) m =
     applyGravity ms (m `gravityPull` other)
 
+cog :: [Moon] -> Moon
+cog (m:[]) = m {name="COG", velocity = Velocity (Vec3 0 0 0) }
+cog (m:ms) = let pos = position m
+                 pCog = position (cog ms)
+             in (cog ms) {position= pos `posPlus` pCog}
+cog _ = error "internal error in cog"
+
 tick :: [Moon] -> [Moon]
 tick ms = applyVelocity . applyGravity ms <$> ms
+
+tick' :: Moon -> Moon -> Moon
+tick' cog' = applyVelocity . applyGravity [cog']
 
 times :: Int -> (a -> a) -> a -> a
 times 0 _ a = a
 times x f a = times (x - 1) f (f a)
+
+countTimesTil' :: Int -> (a -> Bool) -> (a -> a) -> a -> (a, Int)
+countTimesTil' n pred' _ a | pred' a = (a, n)
+countTimesTil' n pred' f a = countTimesTil' (n+1) pred' f (f a)
+
+countTimesTil :: (a -> Bool) -> (a -> a) -> a -> (a, Int)
+countTimesTil = countTimesTil' 0
 
 -- 7758
 solution1 :: IO Int
 solution1 = 
     return . totalEnergySystem $ times 1000 tick universe
 
+nth :: Int -> [a] -> a
+nth 0 (a:_) = a
+nth n (a:as) = nth (n-1) as
+nth _ _ = error "no such element"
+
+--sample m1: 924
+--sample m2: 2772
+--sample m3: 2772
+--sample m4: 924
 solution2 :: IO ()
-solution2 = error "no solution"
+solution2 = do
+    let universe' = tick universe
+        n = 0
+        m = nth n universe
+    --sequence_ $ (\n -> print . totalEnergySystem $ times n (fmap (tick' universeCog)) universe) <$> [1000]
+    print $ countTimesTil' 1 (\uni -> (nth n uni) == m) tick universe'
+    -- COG is stable: nope
+    -- find the period until each moon has made a full circle
+    -- should be fast due to stable COG: nope
+    -- multiply all periods
 
 prop_step_0 :: H.Property
 prop_step_0 = H.withTests 1 $ H.property $ do
