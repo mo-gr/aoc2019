@@ -8,7 +8,6 @@ where
 
 import           Text.Parsec                    ( digit
                                                 , many1
-                                                , parse
                                                 , string
                                                 , (<|>)
                                                 , sepBy
@@ -17,30 +16,25 @@ import           Text.Parsec.ByteString         ( Parser
                                                 , parseFromFile
                                                 )
 import qualified Data.Map.Strict               as Map
-import Control.Monad (liftM, when)
-import Control.Monad.Trans (lift)
-import Control.Concurrent (threadDelay)
-import Control.Monad.IO.Class (liftIO)
-import System.IO 
-import           Control.Monad.State.Strict     ( State
-                                                , StateT
+import           Control.Monad                  ( when )
+import           Control.Monad.Trans            ( lift )
+import           Control.Concurrent             ( threadDelay )
+import           System.IO
+import           Control.Monad.State.Strict     ( StateT
                                                 , gets
-                                                , get
-                                                -- , execState
                                                 , execStateT
                                                 , modify
                                                 , modify'
                                                 )
-import qualified Hedgehog                      as H
-import qualified Hedgehog.Gen                  as Gen
-import qualified Hedgehog.Range                as Range
-import           Debug.Trace                    ( trace )
-import qualified System.Console.ANSI as ANSI
+--import           Debug.Trace                    ( trace )
+import qualified System.Console.ANSI           as ANSI
 
+execState :: StateT s IO a -> s -> IO s
 execState = execStateT
 
 number :: Parser Int
 number = read <$> many1 digit
+
 negativeNumber :: Parser Int
 negativeNumber = negate . read <$> (string "-" *> many1 digit)
 
@@ -74,15 +68,15 @@ buildMachine input' = Machine { memory   = convert input'
                               , input    = []
                               , output   = []
                               , runState = Running
-                              , ballX = 0
-                              , paddleX = 0
+                              , ballX    = 0
+                              , paddleX  = 0
                               }
 
 countBlocks :: [Value] -> Int
-countBlocks [] = 0
-countBlocks (_x:_y:2:vs) = 1 + countBlocks vs
-countBlocks (_x:_y:_tile:vs) = countBlocks vs
-countBlocks _ = error "invalid output"
+countBlocks []                     = 0
+countBlocks (_x : _y : 2     : vs) = 1 + countBlocks vs
+countBlocks (_x : _y : _tile : vs) = countBlocks vs
+countBlocks _                      = error "invalid output"
 
 -- 427
 solution1 :: IO Int
@@ -91,21 +85,18 @@ solution1 = do
     let machine = buildMachine <$> ops
     case machine of
         Left  e -> error (show e)
-        Right m -> 
-            return . countBlocks . output =<< execState runUntilHalt m
+        Right m -> return . countBlocks . output =<< execState runUntilHalt m
 
 solution2 :: IO ()
 solution2 = do
     ops <- parseFromFile parseOp "AOC13.input"
     let machine = buildMachine <$> ops
-        
+
     case machine of
         Left  e -> error (show e)
         Right m -> do
-          let m' = m {memory=Map.insert 0 2 $ memory m, input=[0] }
-          execState runUntilHaltIO m' >> return ()
-
---data Tile = Empty | Wall | Block | Paddle | Ball
+            let m' = m { memory = Map.insert 0 2 $ memory m, input = [0] }
+            execState runUntilHaltIO m' >> return ()
 
 getTilePrint :: Int -> String
 getTilePrint 0 = " "
@@ -115,30 +106,23 @@ getTilePrint 3 = "-"
 getTilePrint 4 = "."
 getTilePrint x = error $ "invalid output: " ++ show x
 
-type Point = (Value, Value)
+printScreen :: [Value] -> IO ()
+printScreen p =
+    let printOutput :: [Int] -> IO ()
+        printOutput []                = return ()
+        printOutput (-1 : _y : z : xs) = do
+            ANSI.setCursorPosition 28 2
+            print z
+            printOutput xs
+        printOutput (x : y : z : xs) = do
+            ANSI.setCursorPosition y x
+            putStr $ getTilePrint z
+            printOutput xs
+        printOutput _ = return ()
+    in  do
+            printOutput p
+            hFlush stdout
 
-outputToScreen :: [Value] -> [(Point, Value)]
-outputToScreen (-1:0:score:vs) = trace ("Score: " ++ (show score)) []
-outputToScreen (x:y:t:vs) = ((x,y), t) : outputToScreen vs
-outputToScreen _ = []
-
-printScreen :: [Value]  -> IO ()
-printScreen p = let 
-                printOutput :: [Int] -> IO ()
-                printOutput [] = return ()
-                printOutput (-1:y:z:xs) = do
-                    ANSI.setCursorPosition 28 2
-                    putStrLn $ show z
-                    printOutput xs
-                printOutput (x:y:z:xs) = do
-                    ANSI.setCursorPosition y x
-                    putStr $ getTilePrint z
-                    printOutput xs
-                printOutput _ = return ()
-                in do 
-                    printOutput p
-                    hFlush stdout
-             
 
 tick :: MachineState ()
 tick = do
@@ -195,21 +179,22 @@ runUntilHalt = do
 
 getKey :: IO [Char]
 getKey = reverse <$> getKey' ""
-    where getKey' chars = do
-            char <- getChar
-            more <- hReady stdin
-            (if more then getKey' else return) (char:chars)            
+  where
+    getKey' chars = do
+        char <- getChar
+        more <- hReady stdin
+        (if more then getKey' else return) (char : chars)
 
-readKey :: IO (Maybe Value)
-readKey = do
+_readKey :: IO (Maybe Value)
+_readKey = do
     hSetBuffering stdin NoBuffering
     hSetEcho stdin False
     ready <- hReady stdin
-    key <- if (ready) then getKey else return ""
+    key   <- if ready then getKey else return ""
     return $ case key of
         "\ESC[C" -> Just 1
         "\ESC[D" -> Just (-1)
-        _ -> Nothing
+        _        -> Nothing
 
 runUntilHaltIO :: MachineState ()
 runUntilHaltIO = do
@@ -221,18 +206,18 @@ runUntilHaltIO = do
             output' <- gets output
             when (length output' >= 3) $ do
                 lift $ printScreen (take 3 output')
-                modify (\s -> s {output=drop 3 output'})
-                when (length output' < 10) $ lift $ threadDelay $  1000
+                modify (\s -> s { output = drop 3 output' })
+                when (length output' < 10) $ lift $ threadDelay $ 500
             case output' of
-                (x:_y:4:_) -> modify (\s -> s {ballX = x})
-                (x:_y:3:_) -> modify (\s -> s {paddleX = x})
-                _ -> return ()
+                (x : _y : 4 : _) -> modify (\s -> s { ballX = x })
+                (x : _y : 3 : _) -> modify (\s -> s { paddleX = x })
+                _                -> return ()
             bX <- gets ballX
             pX <- gets paddleX
-            when (bX > pX) $ modify (\s -> s {input=[1]})
-            when (bX < pX) $ modify (\s -> s {input=[-1]})
-            when (bX == pX) $ modify (\s -> s {input=[0]})
-            -- k <- lift readKey
+            when (bX > pX) $ modify (\s -> s { input = [1] })
+            when (bX < pX) $ modify (\s -> s { input = [-1] })
+            when (bX == pX) $ modify (\s -> s { input = [0] })
+            -- k <- lift _readKey
             -- case k of
             --     Just k' -> modify (\s -> s {input=[k']})
             --     Nothing -> return ()
@@ -248,7 +233,7 @@ readInput p = do
     input' <- gets input
     case input' of
         []       -> modify (\s -> s { runState = WaitingForInput })
-        (x : xs) -> do
+        (x : _) -> do
             store p (o + 1) x
             modify (\s -> s { opCode = o + 2, input = [] })
 

@@ -33,10 +33,10 @@ universe = [io, europa, ganymede, callisto]
 
 _sample_universe :: [Moon]
 _sample_universe =
-    [ makeMoon "m1" (Vec3 (-1) (0) (2))
-    , makeMoon "m2" (Vec3 (2) (-10) (-7))
-    , makeMoon "m3" (Vec3 (4) (-8) (8))
-    , makeMoon "m4" (Vec3 (3) (5) (-1))
+    [ makeMoon "m1" (Vec3 (-1) 0 2)
+    , makeMoon "m2" (Vec3 2 (-10) (-7))
+    , makeMoon "m3" (Vec3 4 (-8) 8)
+    , makeMoon "m4" (Vec3 3 5 (-1))
     ]
 
 
@@ -62,9 +62,6 @@ gravityPull m@Moon { position = Position pVec, velocity } Moon { position = Posi
 velPlus :: Velocity -> Velocity -> Velocity
 velPlus (Velocity vVec) (Velocity vVec') = Velocity (vVec `plus` vVec')
 
-posPlus :: Position -> Position -> Position
-posPlus (Position pVec) (Position pVec') = Position (pVec `plus` pVec')
-
 plus :: Vec3 -> Vec3 -> Vec3
 plus Vec3 { _x, _y, _z } Vec3 { _x = _x', _y = _y', _z = _z' } =
     Vec3 (_x + _x') (_y + _y') (_z + _z')
@@ -84,59 +81,49 @@ applyVelocity m@Moon { velocity = Velocity vVec, position = Position pVec } =
     m { position = Position (vVec `plus` pVec) }
 
 applyGravity :: [Moon] -> Moon -> Moon
-applyGravity [] m = m
-applyGravity (other : ms) m =
-    applyGravity ms (m `gravityPull` other)
-
-cog :: [Moon] -> Moon
-cog (m:[]) = m {name="COG", velocity = Velocity (Vec3 0 0 0) }
-cog (m:ms) = let pos = position m
-                 pCog = position (cog ms)
-             in (cog ms) {position= pos `posPlus` pCog}
-cog _ = error "internal error in cog"
+applyGravity []           m = m
+applyGravity (other : ms) m = applyGravity ms (m `gravityPull` other)
 
 tick :: [Moon] -> [Moon]
 tick ms = applyVelocity . applyGravity ms <$> ms
-
-tick' :: Moon -> Moon -> Moon
-tick' cog' = applyVelocity . applyGravity [cog']
 
 times :: Int -> (a -> a) -> a -> a
 times 0 _ a = a
 times x f a = times (x - 1) f (f a)
 
-countTimesTil' :: Int -> (a -> Bool) -> (a -> a) -> a -> (a, Int)
-countTimesTil' n pred' _ a | pred' a = (a, n)
-countTimesTil' n pred' f a = countTimesTil' (n+1) pred' f (f a)
-
-countTimesTil :: (a -> Bool) -> (a -> a) -> a -> (a, Int)
-countTimesTil = countTimesTil' 0
+countTimesTil :: Int -> (a -> Bool) -> (a -> a) -> a -> (a, Int)
+countTimesTil n pred' _ a | pred' a = (a, n)
+countTimesTil n pred' f a           = countTimesTil (n + 1) pred' f (f a)
 
 -- 7758
 solution1 :: IO Int
-solution1 = 
-    return . totalEnergySystem $ times 1000 tick universe
+solution1 = return . totalEnergySystem $ times 1000 tick universe
 
-nth :: Int -> [a] -> a
-nth 0 (a:_) = a
-nth n (a:as) = nth (n-1) as
-nth _ _ = error "no such element"
+data Dimension = X | Y | Z
 
---sample m1: 924
---sample m2: 2772
---sample m3: 2772
---sample m4: 924
+oneDimensionEq :: Dimension -> Moon -> Moon -> Bool
+oneDimensionEq X Moon { velocity = Velocity Vec3 { _x = vx }, position = Position Vec3 { _x = px } } Moon { velocity = Velocity Vec3 { _x = vx' }, position = Position Vec3 { _x = px' } }
+    = px == px' && vx == vx'
+oneDimensionEq Y Moon { velocity = Velocity Vec3 { _y = vy }, position = Position Vec3 { _y = py } } Moon { velocity = Velocity Vec3 { _y = vy' }, position = Position Vec3 { _y = py' } }
+    = py == py' && vy == vy'
+oneDimensionEq Z Moon { velocity = Velocity Vec3 { _z = vz }, position = Position Vec3 { _z = pz } } Moon { velocity = Velocity Vec3 { _z = vz' }, position = Position Vec3 { _z = pz' } }
+    = pz == pz' && vz == vz'
+
+lcm' :: Integral a => [a] -> a
+lcm' []       = 1
+lcm' (a : as) = lcm a (lcm' as)
+
+-- 354540398381256
 solution2 :: IO ()
 solution2 = do
     let universe' = tick universe
-        n = 0
-        m = nth n universe
-    --sequence_ $ (\n -> print . totalEnergySystem $ times n (fmap (tick' universeCog)) universe) <$> [1000]
-    print $ countTimesTil' 1 (\uni -> (nth n uni) == m) tick universe'
-    -- COG is stable: nope
-    -- find the period until each moon has made a full circle
-    -- should be fast due to stable COG: nope
-    -- multiply all periods
+    let perMoon d = snd $ countTimesTil
+            1
+            (\uni -> and $ zipWith (oneDimensionEq d) uni universe)
+            tick
+            universe'
+    print . lcm' $ perMoon <$> [X, Y, Z]
+
 
 prop_step_0 :: H.Property
 prop_step_0 = H.withTests 1 $ H.property $ do
@@ -185,23 +172,25 @@ prop_velocity_one = H.withTests 1 $ H.property $ do
 
 prop_gravity_neutral :: H.Property
 prop_gravity_neutral = H.withTests 1 $ H.property $ do
-    let m  = head _sample_universe
-    velocity (m `gravityPull` m) H.=== Velocity (Vec3 { _x = 0, _y = 0, _z = 0 })
+    let m = head _sample_universe
+    velocity (m `gravityPull` m)
+        H.=== Velocity (Vec3 { _x = 0, _y = 0, _z = 0 })
 
 prop_gravity_pull :: H.Property
 prop_gravity_pull = H.withTests 1 $ H.property $ do
     let m  = head _sample_universe
     let m' = head (tail _sample_universe)
-    velocity (m `gravityPull` m') H.=== Velocity (Vec3 { _x = 1, _y = -1, _z = -1 })
+    velocity (m `gravityPull` m')
+        H.=== Velocity (Vec3 { _x = 1, _y = -1, _z = -1 })
 
 _tests :: IO Bool
 _tests = H.checkParallel $ H.Group
     "AOC12"
-    [ ("prop_step_0"  , prop_step_0)
-    , ("prop_step_1"  , prop_step_1)
+    [ ("prop_step_0"         , prop_step_0)
+    , ("prop_step_1"         , prop_step_1)
     , ("prop_velocity_simple", prop_velocity_simple)
-    , ("prop_velocity_one", prop_velocity_one)
-    , ("prop_velocity", prop_velocity)
+    , ("prop_velocity_one"   , prop_velocity_one)
+    , ("prop_velocity"       , prop_velocity)
     , ("prop_gravity_neutral", prop_gravity_neutral)
-    , ("prop_gravity_pull", prop_gravity_pull)
+    , ("prop_gravity_pull"   , prop_gravity_pull)
     ]
