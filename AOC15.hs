@@ -1,4 +1,4 @@
-module AOC14
+module AOC15
     ( solution1
     , solution2
     )
